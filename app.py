@@ -6,19 +6,19 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS (Ajustes Visuales: Compacto y Sin Flechas) ---
+# --- ESTILOS CSS REFORZADOS ---
 st.markdown("""
     <style>
-    /* 1. SUBIR SECCIONES (Reducir padding superior) */
+    /* 1. SUBIR SECCIONES */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 0.5rem !important;
         margin-top: 0rem !important;
     }
     
     /* 2. SIDEBAR COMPACTO */
     section[data-testid="stSidebar"] {
         width: 260px !important;
-        padding-top: 2rem !important;
+        padding-top: 1rem !important;
     }
     section[data-testid="stSidebar"] label {
         font-size: 11px !important;
@@ -30,7 +30,7 @@ st.markdown("""
         min-height: 1.8rem;
     }
     
-    /* 3. QUITAR BOTONES +/- (Solución Cross-Browser para Distributed Cost) */
+    /* 3. INPUTS NUMÉRICOS SIN FLECHAS */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
@@ -42,17 +42,18 @@ st.markdown("""
     
     /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL (Títulos y Datos) */
     div[data-testid="stDataEditor"] table {
-        font-size: 10px !important;
+        font-size: 11px !important;
     }
     div[data-testid="stDataEditor"] th {
-        font-size: 10px !important;
-        padding: 4px !important;
-        min-width: 90px !important; /* Forzar ancho mínimo para leer títulos */
+        font-size: 11px !important;
+        padding: 2px !important;
+        min-width: 80px !important;
     }
     div[data-testid="stDataEditor"] td {
-        font-size: 10px !important;
-        padding-top: 2px !important;
-        padding-bottom: 2px !important;
+        font-size: 11px !important;
+        padding-top: 0px !important;
+        padding-bottom: 0px !important;
+        line-height: 1.2 !important;
     }
     
     /* 5. ANCHO COMPLETO */
@@ -192,7 +193,7 @@ if "df_data" not in st.session_state:
         "Duration": [12.0],
         "SLC": ["9X5NBD"],
         "Unit Cost USD": [100.0],
-        "Unit Cost Local": [100.0 * er_val],
+        "Unit Cost Local": [0.0], # Independiente
         "🗑️": [False] # Columna de borrado
     }
     st.session_state.df_data = pd.DataFrame(data)
@@ -214,7 +215,7 @@ if st.button("➕ Agregar Fila", use_container_width=True):
     st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
     st.rerun()
 
-# Configuración Columnas
+# Configuración Columnas - AMBOS COSTOS EDITABLES
 col_config = {
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="medium", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
@@ -240,7 +241,7 @@ edited_df = st.data_editor(
 )
 
 # ==========================================
-# 5. ENGINE DE CÁLCULO & SINCRONIZACIÓN
+# 5. ENGINE DE CÁLCULO (INDEPENDIENTE)
 # ==========================================
 
 if not edited_df.empty:
@@ -252,35 +253,8 @@ if not edited_df.empty:
             st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
             st.rerun()
 
-    # 2. SINCRONIZACIÓN DE MONEDAS (Lógica Inversa Aplicada)
-    editor_state = st.session_state.get("main_editor", {})
-    edited_cells = editor_state.get("edited_rows", {})
-    
-    needs_rerun = False
-    safe_er = er_val if er_val and er_val > 0 else 1.0
-    
-    for idx, changes in edited_cells.items():
-        if idx not in st.session_state.df_data.index: continue
-        
-        # Sincronización Interactiva
-        if "Unit Cost Local" in changes:
-            # Edito Local -> USD = Local * ER (Tu regla para 'si no es USD')
-            new_local = float(changes["Unit Cost Local"])
-            new_usd = new_local * safe_er 
-            st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
-            st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
-            needs_rerun = True
-            
-        elif "Unit Cost USD" in changes:
-            # Edito USD -> Local = USD / ER (Tu regla para 'si es USD')
-            new_usd = float(changes["Unit Cost USD"])
-            new_local = new_usd / safe_er
-            st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
-            st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
-            needs_rerun = True
-
-    if needs_rerun:
-        st.rerun()
+    # NOTA: Se eliminó la sincronización de edited_rows. 
+    # Los campos 'Unit Cost USD' y 'Unit Cost Local' son ahora 100% independientes en la interfaz.
 
     # 3. CÁLCULO DE TOTALES
     rows_count = len(edited_df)
@@ -299,27 +273,22 @@ if not edited_df.empty:
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
 
-        # Recuperar valores
+        # Recuperar valores RAW (sin tocar)
         u_cost_usd_val = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
         u_cost_usd_val = 0.0 if pd.isna(u_cost_usd_val) else float(u_cost_usd_val)
         
         u_cost_local_val = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
         u_cost_local_val = 0.0 if pd.isna(u_cost_local_val) else float(u_cost_local_val)
         
-        # LÓGICA DE CÁLCULO INVERSA (TU REQUERIMIENTO)
+        safe_er = er_val if er_val and er_val > 0 else 1.0
+
+        # LÓGICA DE SELECCIÓN PARA TOTALES
         if currency_mode == "USD":
-            # Si es USD: Base es el digitado (USD).
-            # Local visual es USD / ER.
+            # Modo USD: Tomamos la columna USD tal cual
             base_rate_usd = u_cost_usd_val
-            final_visual_local = u_cost_usd_val / safe_er
-            final_visual_usd = u_cost_usd_val
         else:
-            # Si es Local: Base es el digitado (Local).
-            # USD visual es Local * ER.
-            # Y para el cálculo total usamos este USD "inflado" por la multiplicación
-            base_rate_usd = u_cost_local_val * safe_er 
-            final_visual_usd = base_rate_usd
-            final_visual_local = u_cost_local_val
+            # Modo Local: Tomamos la columna Local y convertimos a USD para sumar
+            base_rate_usd = u_cost_local_val / safe_er
             
         base_line_total = (base_rate_usd * qty * duration_line * slc_factor)
         line_total_usd = base_line_total + dist_cost_per_row
@@ -331,8 +300,6 @@ if not edited_df.empty:
             "L40": off_db["L40"],
             "Go to Conga": off_db["Conga"],
             "Duration": duration_line,
-            "Unit Cost USD": final_visual_usd,
-            "Unit Cost Local": final_visual_local,
             "_LineTotalUSD": line_total_usd
         })
 
@@ -355,7 +322,8 @@ if not edited_df.empty:
     sym = country_data['Curr'] if currency_mode == "Local" else "USD"
     
     k1, k2, k3, k4 = st.columns(4)
-    source_msg = "(Base: USD)" if currency_mode == "USD" else "(Base: Local)"
+    # Mensaje claro de qué columna se está usando
+    source_msg = "(Usando Col: USD)" if currency_mode == "USD" else "(Usando Col: Local)"
     
     k1.metric(f"TOTAL COST {source_msg}", f"{total_cost_usd_accum * factor:,.2f} {sym}")
     k2.metric(f"CONTINGENCY ({risk_pct*100}%)", f"{contingency_val * factor:,.2f} {sym}")
