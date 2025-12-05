@@ -7,7 +7,7 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS REFORZADOS (Mejoras Visuales) ---
+# --- ESTILOS CSS REFORZADOS (Mejoras Visuales en Menús) ---
 st.markdown("""
     <style>
     /* 1. SUBIR SECCIONES */
@@ -31,17 +31,33 @@ st.markdown("""
         min-height: 1.8rem;
     }
     
-    /* 3. ARREGLO MENÚS DESPLEGABLES (Dropdowns y Popovers) */
-    /* Esto asegura que los textos largos de Offerings se vean completos al desplegar */
-    div[data-baseweb="popover"] div[role="listbox"] div {
-        font-size: 11px !important;
-        white-space: normal !important; /* Ajuste de línea */
-        line-height: 1.3 !important;
-        height: auto !important;
-        padding: 6px !important;
-        min-width: 300px !important; /* Ancho mínimo para leer bien */
+    /* 3. ARREGLO CRÍTICO: MENÚS DESPLEGABLES (Selectbox Options) */
+    /* Apunta a los contenedores de listas desplegables de Streamlit (BaseWeb) */
+    ul[data-baseweb="menu"], div[role="listbox"] {
+        min-width: 350px !important; /* Hacer el menú más ancho */
+        max-width: 700px !important; /* Limite máximo */
+        width: auto !important;
     }
     
+    /* Estilo de cada OPCIÓN dentro del menú */
+    li[data-baseweb="option"], li[role="option"], div[role="option"] {
+        font-size: 11px !important;
+        white-space: normal !important; /* Permitir que el texto baje de línea (wrap) */
+        word-wrap: break-word !important;
+        height: auto !important; /* Altura automática según el texto */
+        min-height: 30px !important;
+        padding: 8px !important;
+        border-bottom: 1px solid #f5f5f5 !important; /* Separador sutil */
+        line-height: 1.3 !important;
+    }
+    
+    /* Texto seleccionado dentro de la celda (antes de desplegar) */
+    div[data-baseweb="select"] span {
+        white-space: nowrap; /* En la celda mantenemos una línea */
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     /* 4. INPUTS NUMÉRICOS SIN FLECHAS */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
@@ -54,11 +70,11 @@ st.markdown("""
     
     /* 5. TABLA CENTRAL MEJORADA */
     div[data-testid="stDataEditor"] table {
-        font-size: 11px !important; /* Un poco más legible que 9px */
+        font-size: 11px !important;
     }
     div[data-testid="stDataEditor"] th {
         font-size: 11px !important;
-        background-color: #f0f2f6; /* Color de fondo sutil para cabeceras */
+        background-color: #f0f2f6;
         color: #31333F;
         padding: 4px !important;
         min-width: 80px !important;
@@ -66,7 +82,7 @@ st.markdown("""
     }
     div[data-testid="stDataEditor"] td {
         font-size: 11px !important;
-        padding: 4px !important; /* Más aire para que no se vea amontonado */
+        padding: 4px !important;
         vertical-align: middle !important;
         line-height: 1.2 !important;
     }
@@ -162,7 +178,7 @@ def reset_index(df):
 # ==========================================
 
 with st.sidebar:
-    st.markdown("### General info") # CORRECCIÓN 1: Nombre cambiado
+    st.markdown("### General info") 
     
     country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
     country_data = DB_COUNTRIES[country]
@@ -198,7 +214,6 @@ with st.sidebar:
 # 4. ENCABEZADO Y TABLA (DERECHA)
 # ==========================================
 
-# CORRECCIÓN 2: Título a la derecha y con estilo
 col_header_space, col_header_title = st.columns([1, 3])
 with col_header_title:
     st.markdown("""
@@ -247,21 +262,21 @@ if st.button("➕ Agregar Fila", use_container_width=True):
     st.session_state.df_data = reset_index(st.session_state.df_data)
     st.rerun()
 
-# --- Configuración Columnas (CORREGIDA) ---
+# --- Configuración Columnas ---
 slc_options = sorted(list(set([x["SLC"] for x in DB_SLC])))
 
-# CORRECCIÓN 3: Ajustes visuales en columnas
+# Configuración de Columnas
 col_config = {
-    # Large para Offering, Medium para SLC (para que se vean los textos)
+    # Offering: width="large" para aprovechar espacio
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="large", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
     "Go to Conga": st.column_config.TextColumn("Go to Conga", width="small", disabled=True),
-    "Description": st.column_config.TextColumn("Description", width="medium"), # Un poco más espacio para descripciones
+    "Description": st.column_config.TextColumn("Description", width="medium"),
     "QTY": st.column_config.NumberColumn("QTY", width="small", min_value=1),
     "Start Service Date": st.column_config.DateColumn("Start Date", width="small"),
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
-    "SLC": st.column_config.SelectboxColumn("SLC", options=slc_options, width="medium"),
+    "SLC": st.column_config.SelectboxColumn("SLC", options=slc_options, width="medium"), # SLC Medium
     "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False), 
     "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
     "🗑️": st.column_config.CheckboxColumn("Del", width="small") 
