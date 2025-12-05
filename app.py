@@ -110,7 +110,7 @@ if uploaded_file:
     try:
         # Cargar hojas SIN cabeceras (header=None) para usar coordenadas puras (A1, B2...)
         df_input_raw = pd.read_excel(uploaded_file, sheet_name='INPUT cost', header=None)
-        df_params_raw = pd.read_excel(uploaded_file, sheet_name='parameters', header=None)
+        df_params_raw = pd.read_excel(uploaded_file, sheet_name='Parameters', header=None)
         
         st.success("✅ Archivo cargado. Procesando lógica V09...")
         
@@ -153,7 +153,7 @@ if uploaded_file:
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
             df_final.to_excel(writer, sheet_name='INPUT cost_Calc', index=False, header=False)
-            df_params_raw.to_excel(writer, sheet_name='parameters', index=False, header=False)
+            df_params_raw.to_excel(writer, sheet_name='Parameters', index=False, header=False)
             
         st.download_button(
             label="📥 Descargar Excel Calculado",
@@ -165,3 +165,4 @@ if uploaded_file:
     except Exception as e:
 
         st.error(f"Error crítico: {e}")
+
