@@ -4,23 +4,21 @@ from datetime import date
 import io
 
 # ==========================================
-# 0. CONFIGURACIÓN Y ESTILOS
+# 0. CONFIGURACIÓN
 # ==========================================
-st.set_page_config(page_title="LAcostWeb V19 - Master", layout="wide", page_icon="🏢")
+st.set_page_config(page_title="LAcostWeb V20 - AutoFix", layout="wide", page_icon="🏢")
 
 st.markdown("""
     <style>
     .main { background-color: #f4f6f9; }
     h1 { color: #0F62FE; }
-    div[data-testid="stMetric"] { background-color: #ffffff; padding: 10px; border-radius: 5px; border: 1px solid #e0e0e0; }
+    div[data-testid="stMetric"] { background-color: #ffffff; border: 1px solid #e0e0e0; }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. BASES DE DATOS (INTEGRADAS DEL V5)
+# 1. BASES DE DATOS
 # ==========================================
-
-# DB COUNTRIES (De tu archivo countries.csv)
 DB_COUNTRIES = pd.DataFrame([
     {"Country": "Argentina", "Currency_Code": "ARS", "Exchange_Rate": 1428.95, "Tax_Rate": 0.0529},
     {"Country": "Brazil",    "Currency_Code": "BRL", "Exchange_Rate": 5.34,    "Tax_Rate": 0.1425},
@@ -34,249 +32,136 @@ DB_COUNTRIES = pd.DataFrame([
     {"Country": "USA",       "Currency_Code": "USD", "Exchange_Rate": 1.0,     "Tax_Rate": 0.0}
 ])
 
-# DB RISK (De tu archivo QA Risk.csv)
 DB_RISK = pd.DataFrame({
     "Risk_Level": ["Low", "Medium", "High"],
     "Contingency": [0.02, 0.05, 0.08]
 })
 
-# DB OFFERINGS (De tu archivo Offering.csv - Simulando columna Scope)
-# NOTA: He agregado la columna 'Scope' basada en tu lógica (Brasil vs No Brasil)
-data_offerings = [
-    {"Offering": "IBM Hardware Resell-Lenovo", "L40": "6942-1BT", "Scope": "no brasil"},
-    {"Offering": "1-HWMA MVS SPT other Prod",  "L40": "6942-0IC", "Scope": "no brasil"},
-    {"Offering": "SWMA MVS SPT other Prod",    "L40": "6942-76O", "Scope": "no brasil"},
-    {"Offering": "IBM Support for Red Hat",    "L40": "6948-B73", "Scope": "all"},
-    {"Offering": "Servicio Especial Brasil",   "L40": "BR-9999",  "Scope": "brasil"}, # Ejemplo
-    {"Offering": "Relocation Services",        "L40": "6942-54E", "Scope": "no brasil"}
-]
-DB_OFFERINGS = pd.DataFrame(data_offerings)
-
 # ==========================================
-# 2. FUNCIONES DE LÓGICA DE NEGOCIO
+# 2. FUNCIONES INTELIGENTES
 # ==========================================
 
-def get_country_params(country):
-    """Obtiene Tasa de Cambio y Tax Rate del país seleccionado"""
-    row = DB_COUNTRIES[DB_COUNTRIES["Country"] == country]
-    if not row.empty:
-        return row.iloc[0]["Exchange_Rate"], row.iloc[0]["Tax_Rate"], row.iloc[0]["Currency_Code"]
-    return 1.0, 0.0, "USD"
-
-def calcular_meses(start, end):
-    """Calcula meses entre fechas"""
+def encontrar_encabezado(file_obj, es_csv=False):
+    """Busca en las primeras 20 filas dónde empiezan los datos reales"""
     try:
-        if pd.isnull(start) or pd.isnull(end): return 0.0
-        # Aseguramos formato fecha
-        s = pd.to_datetime(start)
-        e = pd.to_datetime(end)
-        days = (e - s).days
-        if days < 0: return 0.0
-        return round(days / 30.44, 2)
-    except:
-        return 0.0
-
-def procesar_costos(df, er_sidebar):
-    """
-    Hoja COST: Aplica reglas de normalización y excepción Ecuador.
-    """
-    # 1. Calcular Duración
-    df['Duration (Months)'] = df.apply(lambda x: calcular_meses(x.get('Start Date'), x.get('End Date')), axis=1)
-
-    # 2. Lógica Costo Unitario Real
-    def calc_unit_real(row):
-        costo = pd.to_numeric(row.get('Unit Cost', 0), errors='coerce') or 0.0
-        moneda = str(row.get('Currency', '')).strip().upper()
-        # ER de la fila (si existe) o del Sidebar
-        er_row = pd.to_numeric(row.get('ER', 0), errors='coerce')
-        er_used = er_row if er_row > 0 else er_sidebar
-        
-        # Limpieza Unit Loc
-        raw_loc = str(row.get('Unit Loc', '')).strip()
-        unit_loc = raw_loc.split('.')[0].upper()
-        
-        # Regla Excepción
-        es_excepcion = unit_loc in ['10', 'ECUADOR']
-        es_dolar = moneda in ['US', 'USD']
-
-        # FÓRMULA COSTO:
-        # Si es US y NO es excepción -> Dividir por ER (según tu lógica previa)
-        # Nota: Ajusta esto si tu lógica V5 cambió. Asumo que mantenemos la V18.
-        if es_dolar and not es_excepcion:
-            return costo / er_used if er_used else 0
+        if es_csv:
+            # Prueba con coma y punto y coma
+            preview = pd.read_csv(file_obj, nrows=20, header=None, sep=None, engine='python')
         else:
-            return costo
+            preview = pd.read_excel(file_obj, nrows=20, header=None)
+        
+        # Buscamos la fila que tenga 'Currency' y 'Unit Cost' (ignorando mayúsculas)
+        for idx, row in preview.iterrows():
+            row_str = row.astype(str).str.upper().tolist()
+            # Criterio: Debe tener al menos estas 2 palabras clave
+            if any("CURRENCY" in s for s in row_str) and any("COST" in s for s in row_str):
+                return idx
+        return 0 # Si no encuentra, asume fila 0
+    except:
+        return 0
 
-    df['Norm. Unit Cost (USD)'] = df.apply(calc_unit_real, axis=1)
+def normalizar_columnas(df):
+    """Renombra columnas parecidas al estándar requerido"""
+    # 1. Quitar espacios
+    df.columns = [str(c).strip() for c in df.columns]
     
-    # 3. Costo Total
-    df['Qty'] = pd.to_numeric(df['Qty'], errors='coerce').fillna(1)
-    df['Total Cost (USD)'] = df['Norm. Unit Cost (USD)'] * df['Qty'] * df['Duration (Months)']
+    # 2. Mapa de sinónimos
+    mapa = {
+        'UNIT COST': 'Unit Cost', 'COSTO UNITARIO': 'Unit Cost', 'COST': 'Unit Cost',
+        'CURRENCY': 'Currency', 'MONEDA': 'Currency', 'CURR': 'Currency',
+        'UNIT LOC': 'Unit Loc', 'LOCATION': 'Unit Loc', 'PAIS': 'Unit Loc', 'COUNTRY': 'Unit Loc',
+        'OFFERING': 'Offering', 'SERVICIO': 'Offering', 'ITEM': 'Offering',
+        'ER': 'ER', 'TASA': 'ER', 'EXCHANGE RATE': 'ER'
+    }
     
-    return df
-
-def procesar_pricing(df, risk_val, tax_rate, gp_percent):
-    """
-    Hoja PRICING: Aplica Risk, GP y Tax.
-    """
-    gp_decimal = gp_percent / 100.0
-    divisor = 1 - gp_decimal
-    if divisor <= 0: divisor = 1 # Evitar div/0
-    
-    # 1. Costo Total (viene de la fase anterior)
-    costo_total = df['Total Cost (USD)']
-    
-    # 2. Risk Amount
-    df['Risk Contingency'] = costo_total * risk_val
-    
-    # 3. Base Price (Antes de Tax)
-    # Fórmula: (Costo + Risk) / (1 - GP)
-    df['Base Price'] = (costo_total + df['Risk Contingency']) / divisor
-    
-    # 4. Tax Amount
-    df['Tax Amount'] = df['Base Price'] * tax_rate
-    
-    # 5. Final Price
-    df['Final Price'] = df['Base Price'] + df['Tax Amount']
-    
-    return df
+    new_cols = {}
+    for col in df.columns:
+        upper_col = col.upper()
+        if upper_col in mapa:
+            new_cols[col] = mapa[upper_col]
+            
+    return df.rename(columns=new_cols)
 
 # ==========================================
-# 3. INTERFAZ (SIDEBAR - VARIABLES GLOBALES)
+# 3. INTERFAZ Y LÓGICA
 # ==========================================
+
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/5/51/IBM_logo.svg", width=80)
-    st.header("1. Configuración Global")
+    st.header("Configuración Global")
     
-    # Selección de País (Define Tax y Scope)
     country_opts = sorted(DB_COUNTRIES["Country"].unique())
-    sel_country = st.selectbox("País del Negocio", country_opts, index=country_opts.index("Colombia") if "Colombia" in country_opts else 0)
+    sel_country = st.selectbox("País", country_opts, index=country_opts.index("Colombia") if "Colombia" in country_opts else 0)
     
-    # Obtener datos del país
-    er_default, tax_default, curr_code = get_country_params(sel_country)
+    row_country = DB_COUNTRIES[DB_COUNTRIES["Country"] == sel_country].iloc[0]
+    er_default = float(row_country["Exchange_Rate"])
+    tax_default = float(row_country["Tax_Rate"])
     
-    # Inputs manuales (con valores por defecto del país)
-    er_input = st.number_input("Tasa Cambio (ER)", value=float(er_default))
-    tax_input = st.number_input("Impuestos (Tax %)", value=float(tax_default), format="%.4f")
-    
-    st.markdown("---")
-    st.header("2. Variables Financieras")
-    
-    # Riesgo
-    risk_name = st.selectbox("Nivel de Riesgo", DB_RISK["Risk_Level"])
-    risk_val = float(DB_RISK[DB_RISK["Risk_Level"] == risk_name]["Contingency"].iloc[0])
-    st.caption(f"Contingencia aplicada: {risk_val:.1%}")
-    
-    # GP
-    gp_input = st.number_input("GP Objetivo (%)", value=40.0, step=1.0)
+    er_input = st.number_input("Tasa Cambio (ER)", value=er_default)
+    tax_input = st.number_input("Impuestos (%)", value=tax_default, format="%.4f")
     
     st.markdown("---")
-    st.info(f"Modo: {'BRASIL' if sel_country == 'Brazil' else 'LATAM GENERAL'}")
+    gp_input = st.number_input("GP Objetivo (%)", value=40.0)
+    risk_sel = st.selectbox("Riesgo", DB_RISK["Risk_Level"])
+    risk_val = float(DB_RISK[DB_RISK["Risk_Level"] == risk_sel]["Contingency"].iloc[0])
 
-# ==========================================
-# 4. ÁREA PRINCIPAL
-# ==========================================
-st.title(f"Cotizador V19: {sel_country}")
+st.title(f"Cotizador V20: {sel_country}")
 
-# Subida del Archivo
-uploaded_file = st.file_uploader("Cargar Archivo 'Input' (Excel/CSV)", type=['xlsx', 'csv'])
+uploaded_file = st.file_uploader("Cargar Archivo Input", type=['xlsx', 'csv'])
 
 if uploaded_file:
-    # --- 1. LECTURA Y LIMPIEZA ---
     try:
-        if uploaded_file.name.endswith('.csv'):
-            try:
-                df_input = pd.read_csv(uploaded_file)
-                if len(df_input.columns) < 2: 
-                    uploaded_file.seek(0)
-                    df_input = pd.read_csv(uploaded_file, sep=';')
-            except:
-                uploaded_file.seek(0)
-                df_input = pd.read_csv(uploaded_file, sep=';')
+        # 1. Detectar dónde empieza la tabla
+        es_csv = uploaded_file.name.endswith('.csv')
+        start_row = encontrar_encabezado(uploaded_file, es_csv)
+        
+        # Volver al inicio del archivo para leerlo bien
+        uploaded_file.seek(0)
+        
+        # 2. Leer archivo desde la fila detectada
+        if es_csv:
+            df_input = pd.read_csv(uploaded_file, header=start_row, sep=None, engine='python')
         else:
-            # Detectar si hay filas vacías arriba (la tabla sidebar del excel)
-            # Leemos las primeras 10 filas para buscar donde empieza el encabezado "Unit Loc"
-            preview = pd.read_excel(uploaded_file, nrows=10, header=None)
-            header_row = 0
-            for idx, row in preview.iterrows():
-                # Buscamos la fila que tenga "Unit Loc" o "Offering"
-                row_str = row.astype(str).str.upper().tolist()
-                if any("UNIT LOC" in s for s in row_str) or any("OFFERING" in s for s in row_str):
-                    header_row = idx
-                    break
-            
-            df_input = pd.read_excel(uploaded_file, header=header_row)
+            df_input = pd.read_excel(uploaded_file, header=start_row)
 
-        # Normalizar columnas
-        df_input.columns = [str(c).strip() for c in df_input.columns]
+        # 3. Normalizar nombres
+        df_input = normalizar_columnas(df_input)
         
-        # Validar columnas mínimas
+        # 4. Validar
         req_cols = ['Unit Loc', 'Offering', 'Unit Cost', 'Currency']
-        if not all(c in df_input.columns for c in req_cols):
-            st.error(f"Faltan columnas clave. Se requiere al menos: {req_cols}")
-            st.stop()
+        missing = [c for c in req_cols if c not in df_input.columns]
+
+        if missing:
+            st.error("❌ Error de Columnas")
+            st.write(f"No encuentro estas columnas: **{missing}**")
+            st.warning("Columnas que SÍ leí en tu archivo:")
+            st.code(list(df_input.columns))
+            st.info("Tip: Asegúrate de que los encabezados estén en una sola fila.")
+        else:
+            st.success(f"✅ Archivo leído correctamente (Encabezados en fila {start_row + 1})")
             
-        # --- 2. PROCESAMIENTO ---
-        
-        # TABLA 1: INPUT (Limpieza)
-        # Filtramos offerings según Scope (Brasil vs No Brasil)
-        scope_filter = "brasil" if sel_country == "Brazil" else "no brasil"
-        # Nota: Aquí podríamos validar si los offerings del Excel son válidos, 
-        # pero por ahora solo procesamos lo que suben.
-        
-        # TABLA 2: COST
-        df_cost = procesar_costos(df_input.copy(), er_input)
-        
-        # TABLA 3: PRICING
-        df_pricing = procesar_pricing(df_cost.copy(), risk_val, tax_input, gp_input)
-
-        # --- 3. VISUALIZACIÓN POR PESTAÑAS ---
-        tab_input, tab_cost, tab_price = st.tabs(["📂 1. Input Data", "💰 2. Cost Analysis", "🏷️ 3. Pricing Final"])
-        
-        with tab_input:
-            st.subheader("Datos de Entrada")
-            st.dataframe(df_input)
-            st.caption(f"Filas cargadas: {len(df_input)}")
-
-        with tab_cost:
-            st.subheader("Cálculo de Costos (Normalizado)")
-            cols_cost = ['Unit Loc', 'Offering', 'Start Date', 'End Date', 'Duration (Months)', 'Norm. Unit Cost (USD)', 'Total Cost (USD)']
-            # Mostrar solo columnas que existan
-            cols_show = [c for c in cols_cost if c in df_cost.columns]
-            st.dataframe(df_cost[cols_show])
+            # --- PROCESAMIENTO ---
             
-            total_costo = df_cost['Total Cost (USD)'].sum()
-            st.metric("Costo Total del Proyecto (USD)", f"${total_costo:,.2f}")
+            # A. Lógica Costos
+            def calc_cost(row):
+                c = pd.to_numeric(row.get('Unit Cost', 0), errors='coerce') or 0
+                er_row = pd.to_numeric(row.get('ER', 0), errors='coerce')
+                er_final = er_row if er_row > 0 else er_input
+                
+                mon = str(row.get('Currency', '')).upper().strip()
+                loc = str(row.get('Unit Loc', '')).upper().split('.')[0].strip()
+                
+                # Excepción
+                if mon in ['US', 'USD'] and loc not in ['10', 'ECUADOR']:
+                    return c / er_final
+                return c
 
-        with tab_price:
-            st.subheader("Estructura de Precio Final")
-            cols_price = ['Offering', 'Total Cost (USD)', 'Risk Contingency', 'Base Price', 'Tax Amount', 'Final Price']
-            st.dataframe(df_pricing[cols_price])
+            df_input['Norm. Cost (USD)'] = df_input.apply(calc_cost, axis=1)
             
-            # KPI Finales
-            grand_total = df_pricing['Final Price'].sum()
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Precio Final Total", f"${grand_total:,.2f}")
-            col2.metric("Margen (GP)", f"{gp_input}%")
-            col3.metric("Tax Aplicado", f"{tax_input:.1%}")
+            # Cantidad y Duración (simulada si falta)
+            if 'Qty' not in df_input.columns: df_input['Qty'] = 1
+            df_input['Total Cost Base'] = df_input['Norm. Cost (USD)'] * df_input['Qty']
 
-        # --- 4. EXPORTACIÓN EXCEL COMPLETO ---
-        st.divider()
-        st.subheader("📥 Descargar Cotización Completa")
-        
-        # Generar Excel en memoria con múltiples hojas
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_input.to_excel(writer, sheet_name='INPUT', index=False)
-            df_cost.to_excel(writer, sheet_name='COST', index=False)
-            df_pricing.to_excel(writer, sheet_name='PRICING', index=False)
-            
-        st.download_button(
-            label="Descargar Reporte Excel (.xlsx)",
-            data=output.getvalue(),
-            file_name=f"Cotizacion_{sel_country}_V19.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-    except Exception as e:
-        st.error(f"Error procesando el archivo: {e}")
+            # B. Lógica Pricing
+            gp_dec = gp_input / 100.0
+            divisor = 1 - gp_dec if (1 - gp_dec) > 0 else 1
