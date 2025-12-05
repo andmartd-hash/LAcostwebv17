@@ -42,17 +42,16 @@ st.markdown("""
         -moz-appearance: textfield;
     }
     
-    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL (Títulos y Datos) */
+    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL */
     div[data-testid="stDataEditor"] table {
-        font-size: 10px !important; /* Letra más pequeña */
+        font-size: 11px !important;
     }
     div[data-testid="stDataEditor"] th {
-        font-size: 10px !important; /* Títulos pequeños */
-        min-width: 80px !important; /* Asegurar que se vean */
+        font-size: 11px !important;
         padding: 4px !important;
     }
     div[data-testid="stDataEditor"] td {
-        font-size: 10px !important;
+        font-size: 11px !important;
         padding-top: 2px !important;
         padding-bottom: 2px !important;
     }
@@ -67,7 +66,6 @@ st.markdown("""
         width: 100%;
         border-radius: 5px;
         font-weight: bold;
-        font-size: 12px !important;
         padding: 0.2rem;
     }
     </style>
@@ -115,7 +113,6 @@ DB_SLC = [
 # ==========================================
 
 def get_slc_factor(country, slc_code):
-    """Calcula factor SLC con protección contra nulos."""
     if not slc_code or pd.isna(slc_code) or str(slc_code).strip() == "":
         return 1.0
     scope_key = "Brasil" if country == "Brazil" else "no brasil"
@@ -128,7 +125,6 @@ def get_slc_factor(country, slc_code):
     return 1.0
 
 def calc_months(start, end):
-    """Calcula duración en meses."""
     if not start or not end: return 0.0
     try:
         d_start = pd.to_datetime(start).date() if isinstance(start, (pd.Timestamp, str)) else start
@@ -151,10 +147,11 @@ with st.sidebar:
     country_data = DB_COUNTRIES[country]
     er_val = country_data['ER'] if country_data['ER'] else 1.0
     
+    # Currency Mode
     currency_mode = st.radio("Currency Mode", ["USD", "Local"], horizontal=True)
     st.caption(f"Tasa {country_data['Curr']}: {er_val:,.2f}")
 
-    # QA Risk
+    # Risk
     risk_col1, risk_col2 = st.columns([0.7, 0.3])
     qa_risk = risk_col1.selectbox("QA Risk", list(DB_RISK.keys()))
     risk_pct = DB_RISK[qa_risk]
@@ -199,11 +196,11 @@ if "df_data" not in st.session_state:
     }
     st.session_state.df_data = pd.DataFrame(data)
 
-# Auto-corrección de columnas
+# Auto-corrección de columnas (Evita KeyError si cambia estructura)
 if "🗑️" not in st.session_state.df_data.columns:
     st.session_state.df_data["🗑️"] = False
 
-# Botón solo para agregar (Borrar ahora es por línea)
+# Botón Agregar
 if st.button("➕ Agregar Fila", use_container_width=True):
     new_row = pd.DataFrame({
         "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
@@ -216,7 +213,7 @@ if st.button("➕ Agregar Fila", use_container_width=True):
     st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
     st.rerun()
 
-# CONFIGURACIÓN DE COLUMNAS
+# Configuración Columnas
 col_config = {
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="medium", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
@@ -227,13 +224,12 @@ col_config = {
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
     "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
-    # Ambos editables
     "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False),
     "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
-    "🗑️": st.column_config.CheckboxColumn("Del", width="small", help="Marcar para borrar fila") 
+    "🗑️": st.column_config.CheckboxColumn("Del", width="small", help="Marcar para borrar") 
 }
 
-# EDITOR
+# Editor
 edited_df = st.data_editor(
     st.session_state.df_data,
     num_rows="fixed", 
@@ -243,7 +239,7 @@ edited_df = st.data_editor(
 )
 
 # ==========================================
-# 5. ENGINE DE CÁLCULO (Lógica Corregida)
+# 5. ENGINE DE CÁLCULO & SINCRONIZACIÓN
 # ==========================================
 
 if not edited_df.empty:
@@ -255,14 +251,43 @@ if not edited_df.empty:
             st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
             st.rerun()
 
-    # 2. CÁLCULO DE TOTALES Y MONEDA
+    # 2. SINCRONIZACIÓN DE MONEDAS
+    editor_state = st.session_state.get("main_editor", {})
+    edited_cells = editor_state.get("edited_rows", {})
+    
+    needs_rerun = False
+    
+    for idx, changes in edited_cells.items():
+        if idx not in st.session_state.df_data.index: continue
+        
+        # Sincronización Bidireccional
+        if "Unit Cost Local" in changes:
+            # Usuario editó LOCAL -> Calculamos USD (Local / ER)
+            new_local = float(changes["Unit Cost Local"])
+            new_usd = new_local / er_val if er_val else 0.0
+            st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
+            st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
+            needs_rerun = True
+            
+        elif "Unit Cost USD" in changes:
+            # Usuario editó USD -> Calculamos Local (USD * ER)
+            new_usd = float(changes["Unit Cost USD"])
+            new_local = new_usd * er_val
+            st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
+            st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
+            needs_rerun = True
+
+    if needs_rerun:
+        st.rerun()
+
+    # 3. CÁLCULO DE TOTALES
     rows_count = len(edited_df)
     dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
     calculated_rows = []
     total_cost_usd_accum = 0.0
     
     for idx, row in edited_df.iterrows():
-        # Info Base
+        # Info
         off_name = str(row.get("Offering", ""))
         off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
         s_date = row.get("Start Service Date")
@@ -273,30 +298,25 @@ if not edited_df.empty:
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
 
-        # --- LÓGICA DE MONEDA ESPECÍFICA (CORREGIDA) ---
-        u_cost_usd_input = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
-        u_cost_usd_input = 0.0 if pd.isna(u_cost_usd_input) else float(u_cost_usd_input)
+        # Lógica de Selección de Costo Base
+        # Usamos los valores ya sincronizados en el DataFrame/Editor
+        u_cost_usd_val = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
+        u_cost_usd_val = 0.0 if pd.isna(u_cost_usd_val) else float(u_cost_usd_val)
         
-        u_cost_local_input = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
-        u_cost_local_input = 0.0 if pd.isna(u_cost_local_input) else float(u_cost_local_input)
+        u_cost_local_val = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
+        u_cost_local_val = 0.0 if pd.isna(u_cost_local_val) else float(u_cost_local_val)
         
         safe_er = er_val if er_val and er_val > 0 else 1.0
 
+        # La "base del cálculo" depende del modo seleccionado
         if currency_mode == "USD":
-            # 1. Unit USD: dejar el costo digitado
-            final_unit_usd = u_cost_usd_input
-            # 2. Unit Local: costo digitado (USD) DIVIDIDO por ER
-            final_unit_local = u_cost_usd_input / safe_er
-        else: # Currency Mode == Local
-            # 1. Unit Local: dejar el costo digitado
-            final_unit_local = u_cost_local_input
-            # 2. Unit USD: costo digitado (Local) MULTIPLICADO por ER
-            final_unit_usd = u_cost_local_input * safe_er
+            # Si estoy en modo USD, confío en la columna USD
+            base_rate_usd = u_cost_usd_val
+        else:
+            # Si estoy en modo Local, confío en la columna Local y la convierto a USD para el motor interno
+            base_rate_usd = u_cost_local_val / safe_er
             
-        # Nota: Usamos 'final_unit_usd' como base para el cálculo del total, ya que el sistema base está en USD.
-        # Al seguir tu regla de multiplicación/división, el valor resultante en USD será el usado.
-        
-        base_line_total = (final_unit_usd * qty * duration_line * slc_factor)
+        base_line_total = (base_rate_usd * qty * duration_line * slc_factor)
         line_total_usd = base_line_total + dist_cost_per_row
         
         total_cost_usd_accum += line_total_usd
@@ -306,8 +326,8 @@ if not edited_df.empty:
             "L40": off_db["L40"],
             "Go to Conga": off_db["Conga"],
             "Duration": duration_line,
-            "Unit Cost USD": final_unit_usd,     # Valor aplicado según lógica
-            "Unit Cost Local": final_unit_local, # Valor aplicado según lógica
+            "Unit Cost USD": u_cost_usd_val,
+            "Unit Cost Local": u_cost_local_val,
             "_LineTotalUSD": line_total_usd
         })
 
