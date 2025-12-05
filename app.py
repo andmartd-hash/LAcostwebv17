@@ -7,41 +7,49 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS REFORZADOS (Corrección Visual Menús) ---
+# --- ESTILOS CSS REFORZADOS (Mejoras Visuales y Fuentes Más Pequeñas) ---
 st.markdown("""
     <style>
     /* 1. SUBIR SECCIONES */
     .block-container {
-        padding-top: 0.5rem !important;
+        padding-top: 0rem !important;
         margin-top: 0rem !important;
     }
     
-    /* 2. SIDEBAR AJUSTADO */
+    /* 2. SIDEBAR AJUSTADO Y LETRA MÁS PEQUEÑA */
     section[data-testid="stSidebar"] {
         width: 300px !important;
+        padding-top: 0.5rem !important;
+    }
+    section[data-testid="stSidebar"] .block-container {
         padding-top: 1rem !important;
     }
     section[data-testid="stSidebar"] label {
-        font-size: 11px !important;
+        font-size: 10px !important; /* Letra más pequeña en labels sidebar */
         font-weight: bold;
     }
     section[data-testid="stSidebar"] input, section[data-testid="stSidebar"] select {
-        font-size: 11px !important;
-        height: 1.8rem;
-        min-height: 1.8rem;
+        font-size: 10px !important; /* Letra más pequeña en inputs sidebar */
+        height: 1.6rem;
+        min-height: 1.6rem;
     }
-    
-    /* 3. ARREGLO MENÚS DESPLEGABLES (Dropdowns) */
-    /* Esto asegura que las opciones largas (Offerings) se vean completas en el popover */
-    div[data-baseweb="popover"] div[role="listbox"] div {
-        font-size: 11px !important;
-        white-space: normal !important; /* Permitir salto de línea */
-        line-height: 1.2 !important;
+    /* Ajuste para que los textos largos en dropdowns del sidebar se vean mejor */
+    div[data-baseweb="select"] > div {
+        font-size: 10px !important;
+        white-space: normal !important;
+        line-height: 1.1 !important;
         height: auto !important;
-        padding: 8px !important;
+        min-height: 1.6rem !important;
+    }
+    div[data-baseweb="popover"] div[role="listbox"] div {
+        font-size: 10px !important;
+        white-space: normal !important;
+        line-height: 1.1 !important;
+        height: auto !important;
+        padding: 4px !important;
     }
     
-    /* 4. INPUTS NUMÉRICOS SIN FLECHAS */
+    /* 3. INPUTS NUMÉRICOS SIN FLECHAS */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
@@ -51,23 +59,31 @@ st.markdown("""
         -moz-appearance: textfield;
     }
     
-    /* 5. REDUCIR TAMAÑO LETRA TABLA CENTRAL */
+    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL (Aún más pequeña) */
     div[data-testid="stDataEditor"] table {
-        font-size: 10px !important;
+        font-size: 9px !important; /* Letra reducida a 9px */
     }
     div[data-testid="stDataEditor"] th {
-        font-size: 10px !important;
+        font-size: 9px !important; /* Títulos reducidos */
         padding: 2px !important;
-        min-width: 80px !important;
+        min-width: 70px !important;
         vertical-align: middle !important;
+        line-height: 1.1 !important;
     }
     div[data-testid="stDataEditor"] td {
-        font-size: 10px !important;
-        padding: 2px !important;
+        font-size: 9px !important; /* Datos reducidos */
+        padding: 1px !important;
         vertical-align: middle !important;
+        line-height: 1.1 !important;
+    }
+    /* Ajuste específico para dropdowns dentro de la tabla */
+    div[data-testid="stDataEditor"] [data-baseweb="select"] span {
+        white-space: normal !important;
+        line-height: 1.0 !important;
+        font-size: 9px !important;
     }
     
-    /* 6. ANCHO COMPLETO */
+    /* 5. ANCHO COMPLETO */
     .stDataFrame, iframe[title="streamlit.data_editor"] {
         width: 100% !important;
     }
@@ -75,10 +91,11 @@ st.markdown("""
     /* Botones generales */
     div.stButton > button {
         width: 100%;
-        border-radius: 5px;
+        border-radius: 4px;
         font-weight: bold;
-        font-size: 11px !important;
-        padding: 0.2rem;
+        font-size: 10px !important; /* Botones más pequeños */
+        padding: 0.1rem;
+        height: 1.8rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -173,7 +190,7 @@ with st.sidebar:
     risk_col1, risk_col2 = st.columns([0.7, 0.3])
     qa_risk = risk_col1.selectbox("QA Risk", list(DB_RISK.keys()))
     risk_pct = DB_RISK[qa_risk]
-    risk_col2.markdown(f"<div style='padding-top:1.5rem;font-size:10px;font-weight:bold'>{risk_pct*100}%</div>", unsafe_allow_html=True)
+    risk_col2.markdown(f"<div style='padding-top:1.2rem;font-size:9px;font-weight:bold'>{risk_pct*100}%</div>", unsafe_allow_html=True)
 
     customer_name = st.text_input("Customer Name", "Cliente Ejemplo")
     customer_number = st.text_input("Customer Number", "000000")
@@ -247,7 +264,6 @@ col_config = {
     "Start Service Date": st.column_config.DateColumn("Start Date", width="small"),
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
-    # Corrección: SLC con ancho 'medium' y opciones dinámicas completas
     "SLC": st.column_config.SelectboxColumn("SLC", options=slc_options, width="medium"),
     "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False), 
     "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
