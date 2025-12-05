@@ -3,344 +3,280 @@ import pandas as pd
 from datetime import date
 import io
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
+# ==========================================
+# 0. CONFIGURACIÓN Y ESTILOS
+# ==========================================
+st.set_page_config(page_title="LAcostWeb V19 - Master", layout="wide", page_icon="🏢")
 
-# --- ESTILOS CSS (Letra Pequeña y Compacto) ---
 st.markdown("""
     <style>
-    /* 1. Ajustes Generales */
-    .block-container {
-        padding-top: 0.5rem !important;
-        margin-top: 0rem !important;
-    }
-    
-    /* 2. Sidebar Compacto */
-    section[data-testid="stSidebar"] {
-        width: 250px !important;
-        padding-top: 1rem !important;
-    }
-    section[data-testid="stSidebar"] label {
-        font-size: 11px !important;
-        font-weight: bold;
-    }
-    section[data-testid="stSidebar"] input, section[data-testid="stSidebar"] select {
-        font-size: 11px !important;
-        height: 1.8rem;
-        min-height: 1.8rem;
-    }
-    
-    /* 3. Inputs Numéricos Limpios */
-    input[type=number]::-webkit-inner-spin-button, 
-    input[type=number]::-webkit-outer-spin-button { 
-        -webkit-appearance: none; 
-        margin: 0; 
-    }
-    input[type=number] {
-        -moz-appearance: textfield;
-    }
-    
-    /* 4. Tabla de Datos Ultra Compacta */
-    div[data-testid="stDataEditor"] table {
-        font-size: 10px !important;
-    }
-    div[data-testid="stDataEditor"] th {
-        font-size: 10px !important;
-        padding: 2px !important;
-    }
-    div[data-testid="stDataEditor"] td {
-        font-size: 10px !important;
-        padding: 2px !important;
-    }
-    
-    /* 5. Botones */
-    div.stButton > button {
-        width: 100%;
-        border-radius: 4px;
-        font-size: 11px !important;
-        padding: 4px;
-        font-weight: bold;
-    }
+    .main { background-color: #f4f6f9; }
+    h1 { color: #0F62FE; }
+    div[data-testid="stMetric"] { background-color: #ffffff; padding: 10px; border-radius: 5px; border: 1px solid #e0e0e0; }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. BASES DE DATOS (V5 Data)
+# 1. BASES DE DATOS (INTEGRADAS DEL V5)
 # ==========================================
 
-DB_COUNTRIES = {
-    "Argentina": {"ER": 1428.95, "Curr": "ARS", "Tax": 0.0529},
-    "Brazil":    {"ER": 5.34,    "Curr": "BRL", "Tax": 0.1425},
-    "Chile":     {"ER": 934.70,  "Curr": "CLP", "Tax": 0.0},
-    "Colombia":  {"ER": 3775.22, "Curr": "COP", "Tax": 0.01},
-    "Peru":      {"ER": 3.37,    "Curr": "PEN", "Tax": 0.0},
-    "Mexico":    {"ER": 18.42,   "Curr": "MXN", "Tax": 0.0},
-    "Uruguay":   {"ER": 39.73,   "Curr": "UYU", "Tax": 0.0},
-    "Venezuela": {"ER": 235.28,  "Curr": "VES", "Tax": 0.0155},
-    "Ecuador":   {"ER": 1.0,     "Curr": "USD", "Tax": 0.0}
-}
+# DB COUNTRIES (De tu archivo countries.csv)
+DB_COUNTRIES = pd.DataFrame([
+    {"Country": "Argentina", "Currency_Code": "ARS", "Exchange_Rate": 1428.95, "Tax_Rate": 0.0529},
+    {"Country": "Brazil",    "Currency_Code": "BRL", "Exchange_Rate": 5.34,    "Tax_Rate": 0.1425},
+    {"Country": "Chile",     "Currency_Code": "CLP", "Exchange_Rate": 934.70,  "Tax_Rate": 0.0},
+    {"Country": "Colombia",  "Currency_Code": "COP", "Exchange_Rate": 3775.22, "Tax_Rate": 0.01},
+    {"Country": "Ecuador",   "Currency_Code": "USD", "Exchange_Rate": 1.0,     "Tax_Rate": 0.0},
+    {"Country": "Peru",      "Currency_Code": "PEN", "Exchange_Rate": 3.37,    "Tax_Rate": 0.0},
+    {"Country": "Mexico",    "Currency_Code": "MXN", "Exchange_Rate": 18.42,   "Tax_Rate": 0.0},
+    {"Country": "Uruguay",   "Currency_Code": "UYU", "Exchange_Rate": 39.73,   "Tax_Rate": 0.0},
+    {"Country": "Venezuela", "Currency_Code": "VES", "Exchange_Rate": 235.28,  "Tax_Rate": 0.0155},
+    {"Country": "USA",       "Currency_Code": "USD", "Exchange_Rate": 1.0,     "Tax_Rate": 0.0}
+])
 
-DB_OFFERINGS = {
-    "IBM Customized Support for Multivendor Hardware Services": {"L40": "6942-76T", "Conga": "Location Based Services"},
-    "IBM Support for Red Hat": {"L40": "6948-B73", "Conga": "Conga by CSV"},
-    "SWMA MVS SPT other Prod": {"L40": "6942-76O", "Conga": "Conga by CSV"},
-    "IBM Support for Oracle":  {"L40": "6942-42E", "Conga": "Location Based Services"},
-    "Relocation Services - Packaging": {"L40": "6942-54E", "Conga": "Location Based Services"},
-    "1-HWMA MVS SPT other Prod": {"L40": "6942-0IC", "Conga": "Conga by CSV"}
-}
+# DB RISK (De tu archivo QA Risk.csv)
+DB_RISK = pd.DataFrame({
+    "Risk_Level": ["Low", "Medium", "High"],
+    "Contingency": [0.02, 0.05, 0.08]
+})
 
-DB_RISK = {"Low": 0.02, "Medium": 0.05, "High": 0.08}
-
-DB_SLC = [
-    {"Scope": "no brasil", "SLC": "9X5NBD", "Factor": 1.0},
-    {"Scope": "no brasil", "SLC": "24X7SD", "Factor": 1.0},
-    {"Scope": "no brasil", "SLC": "24X7 4h Resp", "Factor": 1.5},
-    {"Scope": "no brasil", "SLC": "24X7 6h Fix", "Factor": 1.6},
-    {"Scope": "Brasil",    "SLC": "9X5NBD", "Factor": 1.0},
-    {"Scope": "Brasil",    "SLC": "24X7SD", "Factor": 1.218},
-    {"Scope": "Brasil",    "SLC": "24X7 4h Resp", "Factor": 1.7}
+# DB OFFERINGS (De tu archivo Offering.csv - Simulando columna Scope)
+# NOTA: He agregado la columna 'Scope' basada en tu lógica (Brasil vs No Brasil)
+data_offerings = [
+    {"Offering": "IBM Hardware Resell-Lenovo", "L40": "6942-1BT", "Scope": "no brasil"},
+    {"Offering": "1-HWMA MVS SPT other Prod",  "L40": "6942-0IC", "Scope": "no brasil"},
+    {"Offering": "SWMA MVS SPT other Prod",    "L40": "6942-76O", "Scope": "no brasil"},
+    {"Offering": "IBM Support for Red Hat",    "L40": "6948-B73", "Scope": "all"},
+    {"Offering": "Servicio Especial Brasil",   "L40": "BR-9999",  "Scope": "brasil"}, # Ejemplo
+    {"Offering": "Relocation Services",        "L40": "6942-54E", "Scope": "no brasil"}
 ]
+DB_OFFERINGS = pd.DataFrame(data_offerings)
 
 # ==========================================
-# 2. LOGICA DE NEGOCIO
+# 2. FUNCIONES DE LÓGICA DE NEGOCIO
 # ==========================================
 
-def get_slc_factor(country, slc_code):
-    if not slc_code or pd.isna(slc_code) or str(slc_code).strip() == "":
-        return 1.0
-    scope_key = "Brasil" if country == "Brazil" else "no brasil"
-    slc_str = str(slc_code).strip()
-    for item in DB_SLC:
-        try:
-            if item["Scope"].lower() == scope_key.lower() and slc_str in str(item["SLC"]):
-                return float(item.get("Factor", 1.0))
-        except: continue
-    return 1.0
+def get_country_params(country):
+    """Obtiene Tasa de Cambio y Tax Rate del país seleccionado"""
+    row = DB_COUNTRIES[DB_COUNTRIES["Country"] == country]
+    if not row.empty:
+        return row.iloc[0]["Exchange_Rate"], row.iloc[0]["Tax_Rate"], row.iloc[0]["Currency_Code"]
+    return 1.0, 0.0, "USD"
 
-def calc_months(start, end):
-    if not start or not end: return 0.0
+def calcular_meses(start, end):
+    """Calcula meses entre fechas"""
     try:
-        d_start = pd.to_datetime(start).date() if isinstance(start, (pd.Timestamp, str)) else start
-        d_end = pd.to_datetime(end).date() if isinstance(end, (pd.Timestamp, str)) else end
-        if d_end < d_start: return 0.0
-        days = (d_end - d_start).days
-        return round(days / 30.44, 1)
-    except: return 0.0
+        if pd.isnull(start) or pd.isnull(end): return 0.0
+        # Aseguramos formato fecha
+        s = pd.to_datetime(start)
+        e = pd.to_datetime(end)
+        days = (e - s).days
+        if days < 0: return 0.0
+        return round(days / 30.44, 2)
+    except:
+        return 0.0
+
+def procesar_costos(df, er_sidebar):
+    """
+    Hoja COST: Aplica reglas de normalización y excepción Ecuador.
+    """
+    # 1. Calcular Duración
+    df['Duration (Months)'] = df.apply(lambda x: calcular_meses(x.get('Start Date'), x.get('End Date')), axis=1)
+
+    # 2. Lógica Costo Unitario Real
+    def calc_unit_real(row):
+        costo = pd.to_numeric(row.get('Unit Cost', 0), errors='coerce') or 0.0
+        moneda = str(row.get('Currency', '')).strip().upper()
+        # ER de la fila (si existe) o del Sidebar
+        er_row = pd.to_numeric(row.get('ER', 0), errors='coerce')
+        er_used = er_row if er_row > 0 else er_sidebar
+        
+        # Limpieza Unit Loc
+        raw_loc = str(row.get('Unit Loc', '')).strip()
+        unit_loc = raw_loc.split('.')[0].upper()
+        
+        # Regla Excepción
+        es_excepcion = unit_loc in ['10', 'ECUADOR']
+        es_dolar = moneda in ['US', 'USD']
+
+        # FÓRMULA COSTO:
+        # Si es US y NO es excepción -> Dividir por ER (según tu lógica previa)
+        # Nota: Ajusta esto si tu lógica V5 cambió. Asumo que mantenemos la V18.
+        if es_dolar and not es_excepcion:
+            return costo / er_used if er_used else 0
+        else:
+            return costo
+
+    df['Norm. Unit Cost (USD)'] = df.apply(calc_unit_real, axis=1)
+    
+    # 3. Costo Total
+    df['Qty'] = pd.to_numeric(df['Qty'], errors='coerce').fillna(1)
+    df['Total Cost (USD)'] = df['Norm. Unit Cost (USD)'] * df['Qty'] * df['Duration (Months)']
+    
+    return df
+
+def procesar_pricing(df, risk_val, tax_rate, gp_percent):
+    """
+    Hoja PRICING: Aplica Risk, GP y Tax.
+    """
+    gp_decimal = gp_percent / 100.0
+    divisor = 1 - gp_decimal
+    if divisor <= 0: divisor = 1 # Evitar div/0
+    
+    # 1. Costo Total (viene de la fase anterior)
+    costo_total = df['Total Cost (USD)']
+    
+    # 2. Risk Amount
+    df['Risk Contingency'] = costo_total * risk_val
+    
+    # 3. Base Price (Antes de Tax)
+    # Fórmula: (Costo + Risk) / (1 - GP)
+    df['Base Price'] = (costo_total + df['Risk Contingency']) / divisor
+    
+    # 4. Tax Amount
+    df['Tax Amount'] = df['Base Price'] * tax_rate
+    
+    # 5. Final Price
+    df['Final Price'] = df['Base Price'] + df['Tax Amount']
+    
+    return df
 
 # ==========================================
-# 3. INTERFAZ: INITIAL INFORMATION
+# 3. INTERFAZ (SIDEBAR - VARIABLES GLOBALES)
 # ==========================================
-
-st.title("🌐 LacostWeb ver19")
-
 with st.sidebar:
-    st.markdown("### Initial Information")
+    st.image("https://upload.wikimedia.org/wikipedia/commons/5/51/IBM_logo.svg", width=80)
+    st.header("1. Configuración Global")
     
-    country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
-    country_data = DB_COUNTRIES[country]
-    er_val = country_data['ER'] if country_data['ER'] else 1.0
+    # Selección de País (Define Tax y Scope)
+    country_opts = sorted(DB_COUNTRIES["Country"].unique())
+    sel_country = st.selectbox("País del Negocio", country_opts, index=country_opts.index("Colombia") if "Colombia" in country_opts else 0)
     
-    # Selector de Moneda
-    currency_mode = st.radio("Currency Mode", ["USD", "Local"], horizontal=True)
-    st.caption(f"Tasa {country_data['Curr']}: {er_val:,.2f}")
-
-    # Risk
-    risk_col1, risk_col2 = st.columns([0.7, 0.3])
-    qa_risk = risk_col1.selectbox("QA Risk", list(DB_RISK.keys()))
-    risk_pct = DB_RISK[qa_risk]
-    risk_col2.markdown(f"<div style='padding-top:1.5rem;font-size:10px;font-weight:bold'>{risk_pct*100}%</div>", unsafe_allow_html=True)
-
-    customer_name = st.text_input("Customer Name", "Cliente Ejemplo")
-    customer_number = st.text_input("Customer Number", "000000")
+    # Obtener datos del país
+    er_default, tax_default, curr_code = get_country_params(sel_country)
     
-    col_d1, col_d2 = st.columns(2)
-    start_date = col_d1.date_input("Contract Start Date", date.today())
-    end_date = col_d2.date_input("Contract End Date", date.today().replace(year=date.today().year + 1))
-    
-    contract_period = calc_months(start_date, end_date)
-    st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
-    
-    # Input Póliza Limpio
-    dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0, format="%.2f")
+    # Inputs manuales (con valores por defecto del país)
+    er_input = st.number_input("Tasa Cambio (ER)", value=float(er_default))
+    tax_input = st.number_input("Impuestos (Tax %)", value=float(tax_default), format="%.4f")
     
     st.markdown("---")
-    target_gp = st.slider("Target GP %", 0.0, 1.0, 0.40, 0.01)
-
-# ==========================================
-# 4. GESTIÓN DE TABLA (CENTRO)
-# ==========================================
-
-st.subheader("📋 TABLA DE DATOS (CENTRO)")
-
-# Inicializar Dataframe
-if "df_data" not in st.session_state:
-    data = {
-        "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
-        "L40": ["6942-76T"],
-        "Go to Conga": ["Location Based Services"],
-        "Description": ["Soporte Base"],
-        "QTY": [1],
-        "Start Service Date": [date.today()],
-        "End Service Date": [date.today().replace(year=date.today().year + 1)],
-        "Duration": [12.0],
-        "SLC": ["9X5NBD"],
-        "Unit Cost USD": [100.0],
-        "Unit Cost Local": [0.0],
-        "🗑️": [False] 
-    }
-    st.session_state.df_data = pd.DataFrame(data)
-
-# Fix para evitar KeyError en sesiones viejas
-if "🗑️" not in st.session_state.df_data.columns:
-    st.session_state.df_data["🗑️"] = False
-
-# Botón Agregar
-if st.button("➕ Agregar Fila", use_container_width=True):
-    new_row = pd.DataFrame({
-        "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
-        "L40": [""], "Go to Conga": [""], "Description": [""],
-        "QTY": [1], "Start Service Date": [date.today()], "End Service Date": [date.today().replace(year=date.today().year + 1)],
-        "Duration": [12.0], "SLC": ["9X5NBD"],
-        "Unit Cost USD": [0.0], "Unit Cost Local": [0.0],
-        "🗑️": [False]
-    })
-    st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
-    st.rerun()
-
-# Configuración Columnas (Campos Independientes)
-col_config = {
-    "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="medium", required=True),
-    "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
-    "Go to Conga": st.column_config.TextColumn("Go to Conga", width="small", disabled=True),
-    "Description": st.column_config.TextColumn("Description", width="small"),
-    "QTY": st.column_config.NumberColumn("QTY", width="small", min_value=1),
-    "Start Service Date": st.column_config.DateColumn("Start Date", width="small"),
-    "End Service Date": st.column_config.DateColumn("End Date", width="small"),
-    "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
-    "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
-    "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False), 
-    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
-    "🗑️": st.column_config.CheckboxColumn("Del", width="small") 
-}
-
-# EDITOR (Sin callbacks, puro input)
-edited_df = st.data_editor(
-    st.session_state.df_data,
-    num_rows="fixed", 
-    use_container_width=True,
-    column_config=col_config,
-    key="main_editor"
-)
-
-# ==========================================
-# 5. ENGINE DE CÁLCULO (Lógica V19)
-# ==========================================
-
-if not edited_df.empty:
+    st.header("2. Variables Financieras")
     
-    # 1. BORRADO DE FILAS
-    if "🗑️" in edited_df.columns:
-        rows_to_delete = edited_df[edited_df["🗑️"] == True].index
-        if not rows_to_delete.empty:
-            st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
-            st.rerun()
-
-    # 2. CÁLCULO DE TOTALES
-    rows_count = len(edited_df)
-    dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
+    # Riesgo
+    risk_name = st.selectbox("Nivel de Riesgo", DB_RISK["Risk_Level"])
+    risk_val = float(DB_RISK[DB_RISK["Risk_Level"] == risk_name]["Contingency"].iloc[0])
+    st.caption(f"Contingencia aplicada: {risk_val:.1%}")
     
-    calculated_rows = []
-    total_cost_usd_accum = 0.0
+    # GP
+    gp_input = st.number_input("GP Objetivo (%)", value=40.0, step=1.0)
     
-    safe_er = er_val if er_val and er_val > 0 else 1.0
+    st.markdown("---")
+    st.info(f"Modo: {'BRASIL' if sel_country == 'Brazil' else 'LATAM GENERAL'}")
 
-    for idx, row in edited_df.iterrows():
-        # -- Info Base --
-        off_name = str(row.get("Offering", ""))
-        off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
-        
-        s_date = row.get("Start Service Date")
-        e_date = row.get("End Service Date")
-        duration_line = calc_months(s_date, e_date)
-        
-        slc_val = row.get("SLC", "")
-        slc_factor = get_slc_factor(country, slc_val)
-        
-        try: qty = float(row.get("QTY", 1))
-        except: qty = 1.0
+# ==========================================
+# 4. ÁREA PRINCIPAL
+# ==========================================
+st.title(f"Cotizador V19: {sel_country}")
 
-        # -- EXTRACCIÓN Y LÓGICA DE MONEDA --
-        u_cost_usd_raw = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
-        u_cost_usd_raw = 0.0 if pd.isna(u_cost_usd_raw) else float(u_cost_usd_raw)
-        
-        u_cost_local_raw = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
-        u_cost_local_raw = 0.0 if pd.isna(u_cost_local_raw) else float(u_cost_local_raw)
-        
-        # DECISIÓN CRÍTICA: ¿Qué valor uso para el total?
-        if currency_mode == "USD":
-            # Si el selector dice USD -> Tomo la columna USD.
-            base_rate_usd = u_cost_usd_raw
+# Subida del Archivo
+uploaded_file = st.file_uploader("Cargar Archivo 'Input' (Excel/CSV)", type=['xlsx', 'csv'])
+
+if uploaded_file:
+    # --- 1. LECTURA Y LIMPIEZA ---
+    try:
+        if uploaded_file.name.endswith('.csv'):
+            try:
+                df_input = pd.read_csv(uploaded_file)
+                if len(df_input.columns) < 2: 
+                    uploaded_file.seek(0)
+                    df_input = pd.read_csv(uploaded_file, sep=';')
+            except:
+                uploaded_file.seek(0)
+                df_input = pd.read_csv(uploaded_file, sep=';')
         else:
-            # Si el selector dice Local -> Tomo la columna Local y la convierto a USD para el total.
-            # Local / ER = USD
-            base_rate_usd = u_cost_local_raw / safe_er
+            # Detectar si hay filas vacías arriba (la tabla sidebar del excel)
+            # Leemos las primeras 10 filas para buscar donde empieza el encabezado "Unit Loc"
+            preview = pd.read_excel(uploaded_file, nrows=10, header=None)
+            header_row = 0
+            for idx, row in preview.iterrows():
+                # Buscamos la fila que tenga "Unit Loc" o "Offering"
+                row_str = row.astype(str).str.upper().tolist()
+                if any("UNIT LOC" in s for s in row_str) or any("OFFERING" in s for s in row_str):
+                    header_row = idx
+                    break
             
-        # -- TOTAL LÍNEA --
-        base_line_total = (base_rate_usd * qty * duration_line * slc_factor)
-        line_total_usd = base_line_total + dist_cost_per_row
-        
-        total_cost_usd_accum += line_total_usd
-        
-        calculated_rows.append({
-            **row,
-            "L40": off_db["L40"],
-            "Go to Conga": off_db["Conga"],
-            "Duration": duration_line,
-            "_LineTotalUSD": line_total_usd
-        })
+            df_input = pd.read_excel(uploaded_file, header=header_row)
 
-    # ==========================================
-    # 6. RESULTADOS FINANCIEROS
-    # ==========================================
-    
-    st.divider()
-    st.subheader("💰 Resumen Financiero")
-    
-    contingency_val = total_cost_usd_accum * risk_pct
-    cost_base = total_cost_usd_accum + contingency_val
-    safe_gp = 0.99 if target_gp >= 1.0 else target_gp
-    sell_price = cost_base / (1 - safe_gp)
-    taxes = sell_price * country_data['Tax']
-    final_price = sell_price + taxes
-    
-    # VISUALIZACIÓN
-    factor = er_val if currency_mode == "Local" else 1.0
-    sym = country_data['Curr'] if currency_mode == "Local" else "USD"
-    
-    k1, k2, k3, k4 = st.columns(4)
-    
-    # Indicador de fuente
-    source_label = "USD" if currency_mode == "USD" else "Local"
-    
-    k1.metric(f"TOTAL COST (Base: {source_label})", f"{total_cost_usd_accum * factor:,.2f} {sym}")
-    k2.metric(f"CONTINGENCY ({risk_pct*100}%)", f"{contingency_val * factor:,.2f} {sym}")
-    k3.metric(f"SELL PRICE (Revenue)", f"{sell_price * factor:,.2f} {sym}")
-    k4.metric("FINAL PRICE (+Tax)", f"{final_price * factor:,.2f} {sym}")
-    
-    # EXPORTACIÓN
-    if st.button("💾 Descargar Excel Calculado"):
+        # Normalizar columnas
+        df_input.columns = [str(c).strip() for c in df_input.columns]
+        
+        # Validar columnas mínimas
+        req_cols = ['Unit Loc', 'Offering', 'Unit Cost', 'Currency']
+        if not all(c in df_input.columns for c in req_cols):
+            st.error(f"Faltan columnas clave. Se requiere al menos: {req_cols}")
+            st.stop()
+            
+        # --- 2. PROCESAMIENTO ---
+        
+        # TABLA 1: INPUT (Limpieza)
+        # Filtramos offerings según Scope (Brasil vs No Brasil)
+        scope_filter = "brasil" if sel_country == "Brazil" else "no brasil"
+        # Nota: Aquí podríamos validar si los offerings del Excel son válidos, 
+        # pero por ahora solo procesamos lo que suben.
+        
+        # TABLA 2: COST
+        df_cost = procesar_costos(df_input.copy(), er_input)
+        
+        # TABLA 3: PRICING
+        df_pricing = procesar_pricing(df_cost.copy(), risk_val, tax_input, gp_input)
+
+        # --- 3. VISUALIZACIÓN POR PESTAÑAS ---
+        tab_input, tab_cost, tab_price = st.tabs(["📂 1. Input Data", "💰 2. Cost Analysis", "🏷️ 3. Pricing Final"])
+        
+        with tab_input:
+            st.subheader("Datos de Entrada")
+            st.dataframe(df_input)
+            st.caption(f"Filas cargadas: {len(df_input)}")
+
+        with tab_cost:
+            st.subheader("Cálculo de Costos (Normalizado)")
+            cols_cost = ['Unit Loc', 'Offering', 'Start Date', 'End Date', 'Duration (Months)', 'Norm. Unit Cost (USD)', 'Total Cost (USD)']
+            # Mostrar solo columnas que existan
+            cols_show = [c for c in cols_cost if c in df_cost.columns]
+            st.dataframe(df_cost[cols_show])
+            
+            total_costo = df_cost['Total Cost (USD)'].sum()
+            st.metric("Costo Total del Proyecto (USD)", f"${total_costo:,.2f}")
+
+        with tab_price:
+            st.subheader("Estructura de Precio Final")
+            cols_price = ['Offering', 'Total Cost (USD)', 'Risk Contingency', 'Base Price', 'Tax Amount', 'Final Price']
+            st.dataframe(df_pricing[cols_price])
+            
+            # KPI Finales
+            grand_total = df_pricing['Final Price'].sum()
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Precio Final Total", f"${grand_total:,.2f}")
+            col2.metric("Margen (GP)", f"{gp_input}%")
+            col3.metric("Tax Aplicado", f"{tax_input:.1%}")
+
+        # --- 4. EXPORTACIÓN EXCEL COMPLETO ---
+        st.divider()
+        st.subheader("📥 Descargar Cotización Completa")
+        
+        # Generar Excel en memoria con múltiples hojas
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_export = pd.DataFrame(calculated_rows)
-            # Limpiar columnas internas
-            cols_drop = ["_LineTotalUSD", "🗑️"]
-            df_export = df_export.drop(columns=[c for c in cols_drop if c in df_export.columns])
-            df_export.to_excel(writer, sheet_name='Input Processed', index=False)
+            df_input.to_excel(writer, sheet_name='INPUT', index=False)
+            df_cost.to_excel(writer, sheet_name='COST', index=False)
+            df_pricing.to_excel(writer, sheet_name='PRICING', index=False)
             
-            summary_data = {
-                "KPI": ["Customer", "Risk", "Total Cost USD", "Sell Price USD", "Final Price USD", "GP Target", "Active Currency Mode"],
-                "Value": [customer_name, risk_pct, total_cost_usd_accum, sell_price, final_price, target_gp, currency_mode]
-            }
-            pd.DataFrame(summary_data).to_excel(writer, sheet_name='Pricing Summary', index=False)
-            
-        st.download_button("📥 Click para descargar", output, f"Lacost_{customer_name}_V19.xlsx", "application/vnd.ms-excel")
+        st.download_button(
+            label="Descargar Reporte Excel (.xlsx)",
+            data=output.getvalue(),
+            file_name=f"Cotizacion_{sel_country}_V19.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        st.error(f"Error procesando el archivo: {e}")
