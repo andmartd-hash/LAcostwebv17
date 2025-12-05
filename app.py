@@ -32,24 +32,32 @@ st.markdown("""
         min-height: 2rem;
     }
     
-    /* 3. QUITAR BOTONES +/- (Solución Cross-Browser) */
-    /* Chrome, Safari, Edge, Opera */
+    /* 3. QUITAR BOTONES +/- (Solución Cross-Browser para Distributed Cost) */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
         margin: 0; 
     }
-    /* Firefox */
     input[type=number] {
         -moz-appearance: textfield;
     }
     
-    /* 4. TABLA ANCHO COMPLETO */
+    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL */
+    div[data-testid="stDataEditor"] table {
+        font-size: 11px !important;
+    }
+    div[data-testid="stDataEditor"] td {
+        font-size: 11px !important;
+        padding-top: 4px !important;
+        padding-bottom: 4px !important;
+    }
+    
+    /* 5. ANCHO COMPLETO */
     .stDataFrame, iframe[title="streamlit.data_editor"] {
         width: 100% !important;
     }
     
-    /* 5. BOTONES DE ACCIÓN */
+    /* Botones generales */
     div.stButton > button {
         width: 100%;
         border-radius: 5px;
@@ -130,13 +138,12 @@ def calc_months(start, end):
 st.title("🌐 LacostWeb ver19")
 
 with st.sidebar:
-    st.markdown("### Initial Information")  # Corrección #2: Título cambiado
+    st.markdown("### Initial Information")
     
     country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
     country_data = DB_COUNTRIES[country]
     er_val = country_data['ER'] if country_data['ER'] else 1.0
     
-    # Currency Switch
     currency_mode = st.radio("Currency Mode", ["USD", "Local"], horizontal=True)
     st.caption(f"Tasa {country_data['Curr']}: {er_val:,.2f}")
 
@@ -156,15 +163,14 @@ with st.sidebar:
     contract_period = calc_months(start_date, end_date)
     st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
     
-    # Corrección #1: Input Póliza sin botones (+/-)
-    # step=0.0 le dice a Streamlit "no uses incrementos", y format="%.2f" lo formatea bonito.
+    # CORRECCIÓN 1: Input Póliza sin botones (step=0.0)
     dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0, format="%.2f")
     
     st.markdown("---")
     target_gp = st.slider("Target GP %", 0.0, 1.0, 0.40, 0.01)
 
 # ==========================================
-# 4. GESTIÓN DE TABLA (Botones Visibles)
+# 4. GESTIÓN DE TABLA
 # ==========================================
 
 st.subheader("📋 TABLA DE DATOS (CENTRO)")
@@ -181,31 +187,25 @@ if "df_data" not in st.session_state:
         "Duration": [12.0],
         "SLC": ["9X5NBD"],
         "Unit Cost USD": [100.0],
-        "Unit Cost Local": [0.0] 
+        "Unit Cost Local": [100.0 * er_val],
+        "🗑️": [False] # Columna de borrado
     }
     st.session_state.df_data = pd.DataFrame(data)
 
-# BOTONES DE ACCIÓN
-col_act1, col_act2, col_act3 = st.columns([1, 1, 5])
-with col_act1:
-    if st.button("➕ Agregar Fila", use_container_width=True):
-        new_row = pd.DataFrame({
-            "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
-            "L40": [""], "Go to Conga": [""], "Description": [""],
-            "QTY": [1], "Start Service Date": [date.today()], "End Service Date": [date.today().replace(year=date.today().year + 1)],
-            "Duration": [12.0], "SLC": ["9X5NBD"],
-            "Unit Cost USD": [0.0], "Unit Cost Local": [0.0]
-        })
-        st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
-        st.rerun()
+# Botón solo para agregar (Borrar ahora es por línea)
+if st.button("➕ Agregar Fila", use_container_width=True):
+    new_row = pd.DataFrame({
+        "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
+        "L40": [""], "Go to Conga": [""], "Description": [""],
+        "QTY": [1], "Start Service Date": [date.today()], "End Service Date": [date.today().replace(year=date.today().year + 1)],
+        "Duration": [12.0], "SLC": ["9X5NBD"],
+        "Unit Cost USD": [0.0], "Unit Cost Local": [0.0],
+        "🗑️": [False]
+    })
+    st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
+    st.rerun()
 
-with col_act2:
-    if st.button("🗑️ Eliminar Fila", use_container_width=True):
-        if len(st.session_state.df_data) > 0:
-            st.session_state.df_data = st.session_state.df_data.iloc[:-1]
-            st.rerun()
-
-# CONFIGURACIÓN DE COLUMNAS (Independientes)
+# CONFIGURACIÓN DE COLUMNAS
 col_config = {
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="medium", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
@@ -216,11 +216,13 @@ col_config = {
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
     "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
-    # Ambos editables
     "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False),
-    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False)
+    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
+    # CORRECCIÓN 4: Botón de borrado pequeño al final
+    "🗑️": st.column_config.CheckboxColumn("Del", width="small", help="Marcar para borrar fila") 
 }
 
+# EDITOR (Con session_state para detectar cambios)
 edited_df = st.data_editor(
     st.session_state.df_data,
     num_rows="fixed", 
@@ -230,18 +232,56 @@ edited_df = st.data_editor(
 )
 
 # ==========================================
-# 5. ENGINE DE CÁLCULO (Robustecido)
+# 5. ENGINE DE CÁLCULO & SINCRONIZACIÓN
 # ==========================================
 
 if not edited_df.empty:
     
+    # 1. LÓGICA DE BORRADO DE FILAS
+    rows_to_delete = edited_df[edited_df["🗑️"] == True].index
+    if not rows_to_delete.empty:
+        st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
+        st.rerun()
+
+    # 2. SINCRONIZACIÓN DE MONEDAS (Corrección 2)
+    # Detectamos qué celda cambió para actualizar la otra moneda automáticamente
+    # Esto asegura que el total siempre tenga datos frescos
+    editor_state = st.session_state.get("main_editor", {})
+    edited_cells = editor_state.get("edited_rows", {})
+    
+    needs_rerun = False
+    
+    # Actualizar Session State basado en ediciones
+    for idx, changes in edited_cells.items():
+        if idx not in st.session_state.df_data.index: continue
+        
+        # Si usuario editó Local -> Calculamos USD
+        if "Unit Cost Local" in changes:
+            new_local = float(changes["Unit Cost Local"])
+            new_usd = new_local / er_val if er_val else 0.0
+            st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
+            st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
+            needs_rerun = True
+            
+        # Si usuario editó USD -> Calculamos Local
+        elif "Unit Cost USD" in changes:
+            new_usd = float(changes["Unit Cost USD"])
+            new_local = new_usd * er_val
+            st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
+            st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
+            needs_rerun = True
+
+    if needs_rerun:
+        st.rerun()
+
+    # 3. CÁLCULO DE TOTALES (Usando siempre el valor sincronizado)
     rows_count = len(edited_df)
     dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
     calculated_rows = []
     total_cost_usd_accum = 0.0
     
     for idx, row in edited_df.iterrows():
-        # 1. Info Base
+        # Info Base
         off_name = str(row.get("Offering", ""))
         off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
         
@@ -255,24 +295,13 @@ if not edited_df.empty:
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
 
-        # 2. EXTRACCIÓN DE COSTOS (Robustez Extrema)
-        u_cost_usd_input = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
-        u_cost_usd_input = 0.0 if pd.isna(u_cost_usd_input) else float(u_cost_usd_input)
+        # Para el cálculo total, confiamos en el valor USD que ya está sincronizado
+        # (ya sea porque se editó directamente o se calculó desde el local)
+        u_cost_usd_calc = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
+        u_cost_usd_calc = 0.0 if pd.isna(u_cost_usd_calc) else float(u_cost_usd_calc)
         
-        u_cost_local_input = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
-        u_cost_local_input = 0.0 if pd.isna(u_cost_local_input) else float(u_cost_local_input)
-        
-        # 3. LÓGICA DE CÁLCULO SEGÚN MODO
-        if currency_mode == "USD":
-            # Modo USD: Usamos el campo USD directo
-            base_rate_for_calc = u_cost_usd_input
-        else:
-            # Modo Local: Usamos el campo Local y dividimos por tasa
-            safe_er = er_val if er_val and er_val > 0 else 1.0
-            base_rate_for_calc = u_cost_local_input / safe_er
-            
-        # 4. Totales
-        base_line_total = (base_rate_for_calc * qty * duration_line * slc_factor)
+        # Totales
+        base_line_total = (u_cost_usd_calc * qty * duration_line * slc_factor)
         line_total_usd = base_line_total + dist_cost_per_row
         
         total_cost_usd_accum += line_total_usd
@@ -304,7 +333,6 @@ if not edited_df.empty:
     sym = country_data['Curr'] if currency_mode == "Local" else "USD"
     
     k1, k2, k3, k4 = st.columns(4)
-    # Indicamos qué moneda se usó como base
     source_msg = "(Base: USD)" if currency_mode == "USD" else "(Base: Local)"
     
     k1.metric(f"TOTAL COST {source_msg}", f"{total_cost_usd_accum * factor:,.2f} {sym}")
@@ -316,7 +344,9 @@ if not edited_df.empty:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df_export = pd.DataFrame(calculated_rows)
-            if "_LineTotalUSD" in df_export.columns: df_export = df_export.drop(columns=["_LineTotalUSD"])
+            # Limpiar columnas auxiliares
+            cols_to_drop = ["_LineTotalUSD", "🗑️"]
+            df_export = df_export.drop(columns=[c for c in cols_to_drop if c in df_export.columns])
             df_export.to_excel(writer, sheet_name='Input Processed', index=False)
             
             summary_data = {
