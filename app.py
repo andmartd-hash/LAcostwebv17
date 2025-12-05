@@ -9,10 +9,18 @@ st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐"
 # --- ESTILOS CSS (Ajustes Visuales) ---
 st.markdown("""
     <style>
-    /* 1. Reducir tamaño fuente Sidebar */
+    /* 1. Reducir espacio superior (Subir secciones) */
+    .block-container {
+        padding-top: 1rem !important;
+        padding-bottom: 1rem !important;
+        margin-top: 0 !important;
+    }
+    
+    /* 2. Reducir tamaño fuente Sidebar */
     section[data-testid="stSidebar"] {
         font-size: 11px !important;
         width: 260px !important;
+        padding-top: 0rem !important; /* Subir contenido del sidebar también */
     }
     section[data-testid="stSidebar"] label {
         font-size: 11px !important;
@@ -23,17 +31,29 @@ st.markdown("""
         height: 1.8rem;
         min-height: 1.8rem;
     }
-    /* 2. Quitar botones +/- de inputs numéricos */
+    
+    /* 3. Quitar botones +/- de inputs numéricos */
+    /* Para navegadores Webkit (Chrome, Safari) */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
         margin: 0; 
     }
-    /* 3. Tabla Ancho Completo */
+    /* Para Firefox */
+    input[type=number] {
+        -moz-appearance: textfield;
+    }
+    /* Ocultar botones de Streamlit específicamente */
+    [data-testid="stNumberInputStepUp"], [data-testid="stNumberInputStepDown"] {
+        display: none !important;
+    }
+    
+    /* 4. Tabla Ancho Completo */
     .stDataFrame, iframe[title="streamlit.data_editor"] {
         width: 100% !important;
     }
-    /* 4. Botones de acción visibles y grandes */
+    
+    /* 5. Botones de acción visibles y grandes */
     div.stButton > button {
         width: 100%;
         border-radius: 5px;
@@ -112,7 +132,7 @@ def calc_months(start, end):
 st.title("🌐 LacostWeb ver19")
 
 with st.sidebar:
-    st.markdown("### CONFIGURACIÓN")
+    st.markdown("### Initial Information")  # CAMBIO REALIZADO
     
     country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
     country_data = DB_COUNTRIES[country]
@@ -137,7 +157,7 @@ with st.sidebar:
     contract_period = calc_months(start_date, end_date)
     st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
     
-    # Input Póliza sin botones +/-
+    # Input Póliza sin botones +/- (step=0.0 elimina los controles en Streamlit)
     dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0)
     
     st.markdown("---")
