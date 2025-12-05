@@ -34,6 +34,9 @@ st.markdown("""
     div[data-baseweb="select"] > div {
         font-size: 11px !important;
         white-space: normal !important; /* Permitir salto de línea si es necesario */
+        line-height: 1.2 !important;
+        height: auto !important;
+        min-height: 1.8rem !important;
     }
     
     /* 3. INPUTS NUMÉRICOS SIN FLECHAS */
@@ -58,6 +61,12 @@ st.markdown("""
     div[data-testid="stDataEditor"] td {
         font-size: 10px !important;
         padding: 2px !important;
+    }
+    /* CORRECCIÓN 2: Ajuste específico para dropdowns dentro de la tabla (data editor) */
+    div[data-testid="stDataEditor"] [data-baseweb="select"] span {
+        white-space: normal !important;
+        line-height: 1.1 !important;
+        font-size: 10px !important;
     }
     
     /* 5. ANCHO COMPLETO */
@@ -188,7 +197,7 @@ with st.sidebar:
 # 4. GESTIÓN DE TABLA (CENTRO)
 # ==========================================
 
-st.subheader("📋 TABLA DE DATOS (CENTRO)")
+st.subheader("📋 Input Values Section") # CORRECCIÓN 1: Cambio de nombre sección central
 
 # Inicializar Dataframe
 if "df_data" not in st.session_state:
