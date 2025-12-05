@@ -8,7 +8,7 @@ import io
 st.set_page_config(page_title="LACOSWEB V17", layout="wide", page_icon="📊")
 
 st.title("📊 LACOSWEB V17 - Cloud Engine")
-st.markdown("Cálculo de costos basado en **INPUT Cost** y **Parameters** (Lógica V09).")
+st.markdown("Cálculo de costos basado en **INPUT cost** y **Parameters** (Lógica V09).")
 
 # --- FUNCIONES DE LÓGICA DE NEGOCIO (EL CORAZÓN DEL SISTEMA) ---
 
@@ -66,7 +66,7 @@ def perform_vlookups(df_input, df_params):
         st.error(f"Error extrayendo tabla de parámetros (K436:N458): {e}")
         return df_input
 
-    # 2. Aplicar VLOOKUP fila por fila en INPUT Cost (asumiendo datos desde fila 13 en adelante python index)
+    # 2. Aplicar VLOOKUP fila por fila en INPUT cost (asumiendo datos desde fila 13 en adelante python index)
     # Buscamos en columna D (índice 3)
     
     # Creamos listas para los resultados
@@ -109,7 +109,7 @@ uploaded_file = st.file_uploader("📂 Sube tu archivo Excel (LACOST+V09...)", t
 if uploaded_file:
     try:
         # Cargar hojas SIN cabeceras (header=None) para usar coordenadas puras (A1, B2...)
-        df_input_raw = pd.read_excel(uploaded_file, sheet_name='INPUT Cost', header=None)
+        df_input_raw = pd.read_excel(uploaded_file, sheet_name='INPUT cost', header=None)
         df_params_raw = pd.read_excel(uploaded_file, sheet_name='parameters', header=None)
         
         st.success("✅ Archivo cargado. Procesando lógica V09...")
@@ -152,7 +152,7 @@ if uploaded_file:
         # --- 4. DESCARGA ---
         buffer = io.BytesIO()
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df_final.to_excel(writer, sheet_name='INPUT Cost_Calc', index=False, header=False)
+            df_final.to_excel(writer, sheet_name='INPUT cost_Calc', index=False, header=False)
             df_params_raw.to_excel(writer, sheet_name='parameters', index=False, header=False)
             
         st.download_button(
@@ -163,4 +163,5 @@ if uploaded_file:
         )
 
     except Exception as e:
+
         st.error(f"Error crítico: {e}")
