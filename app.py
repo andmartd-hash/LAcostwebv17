@@ -7,12 +7,12 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS REFORZADOS (Mejoras Visuales en Menús) ---
+# --- ESTILOS CSS REFORZADOS ---
 st.markdown("""
     <style>
     /* 1. SUBIR SECCIONES */
     .block-container {
-        padding-top: 1rem !important;
+        padding-top: 0.5rem !important;
         margin-top: 0rem !important;
     }
     
@@ -31,33 +31,14 @@ st.markdown("""
         min-height: 1.8rem;
     }
     
-    /* 3. ARREGLO CRÍTICO: MENÚS DESPLEGABLES (Selectbox Options) */
-    /* Apunta a los contenedores de listas desplegables de Streamlit (BaseWeb) */
-    ul[data-baseweb="menu"], div[role="listbox"] {
-        min-width: 350px !important; /* Hacer el menú más ancho */
-        max-width: 700px !important; /* Limite máximo */
-        width: auto !important;
-    }
-    
-    /* Estilo de cada OPCIÓN dentro del menú */
-    li[data-baseweb="option"], li[role="option"], div[role="option"] {
+    /* 3. ARREGLO MENÚS DESPLEGABLES (Para la barra de entrada y Sidebar) */
+    div[data-baseweb="select"] > div {
         font-size: 11px !important;
-        white-space: normal !important; /* Permitir que el texto baje de línea (wrap) */
-        word-wrap: break-word !important;
-        height: auto !important; /* Altura automática según el texto */
-        min-height: 30px !important;
-        padding: 8px !important;
-        border-bottom: 1px solid #f5f5f5 !important; /* Separador sutil */
-        line-height: 1.3 !important;
+        white-space: normal !important;
+        height: auto !important;
+        min-height: 1.8rem !important;
     }
     
-    /* Texto seleccionado dentro de la celda (antes de desplegar) */
-    div[data-baseweb="select"] span {
-        white-space: nowrap; /* En la celda mantenemos una línea */
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
     /* 4. INPUTS NUMÉRICOS SIN FLECHAS */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
@@ -92,7 +73,7 @@ st.markdown("""
         width: 100% !important;
     }
     
-    /* Botones generales */
+    /* Botones */
     div.stButton > button {
         width: 100%;
         border-radius: 4px;
@@ -100,6 +81,15 @@ st.markdown("""
         font-size: 11px !important;
         padding: 0.1rem;
         height: 1.8rem;
+    }
+    
+    /* Estilo para el contenedor de Agregar */
+    .add-box {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        border: 1px solid #e0e0e0;
+        margin-bottom: 10px;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -211,7 +201,7 @@ with st.sidebar:
     target_gp = st.slider("Target GP %", 0.0, 1.0, 0.40, 0.01)
 
 # ==========================================
-# 4. ENCABEZADO Y TABLA (DERECHA)
+# 4. ENCABEZADO
 # ==========================================
 
 col_header_space, col_header_title = st.columns([1, 3])
@@ -244,31 +234,57 @@ if "df_data" not in st.session_state:
     st.session_state.df_data = pd.DataFrame(data)
     st.session_state.df_data = reset_index(st.session_state.df_data) 
 
-# Fix para evitar KeyError
 if "🗑️" not in st.session_state.df_data.columns:
     st.session_state.df_data["🗑️"] = False
 
-# Botón Agregar
-if st.button("➕ Agregar Fila", use_container_width=True):
-    new_row = pd.DataFrame({
-        "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
-        "L40": [""], "Go to Conga": [""], "Description": [""],
-        "QTY": [1], "Start Service Date": [date.today()], "End Service Date": [date.today().replace(year=date.today().year + 1)],
-        "Duration": [12.0], "SLC": ["9X5NBD"],
-        "Unit Cost USD": [0.0], "Unit Cost Local": [0.0],
-        "🗑️": [False]
-    })
-    st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
-    st.session_state.df_data = reset_index(st.session_state.df_data)
-    st.rerun()
-
-# --- Configuración Columnas ---
+# --- OPCIONES SLC ---
 slc_options = sorted(list(set([x["SLC"] for x in DB_SLC])))
+
+# ==========================================
+# 5. BARRA DE ENTRADA (AGREGAR FILA) - ESTILO FORMULARIO
+# ==========================================
+# Usamos widgets nativos (st.selectbox) para garantizar que se vean igual que el sidebar
+
+with st.expander("➕ Agregar Nuevo Servicio (Input)", expanded=True):
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        # Menú Offering GRANDE y CÓMODO
+        new_offering = st.selectbox("Select Offering", options=list(DB_OFFERINGS.keys()))
+    with c2:
+        new_slc = st.selectbox("Select SLC", options=slc_options)
+    
+    c3, c4, c5, c6 = st.columns(4)
+    with c3:
+        new_qty = st.number_input("QTY", min_value=1, value=1, step=1)
+    with c4:
+        new_desc = st.text_input("Description", "Nuevo Servicio")
+    with c5:
+        # Costos iniciales (opcionales)
+        new_cost_usd = st.number_input("Unit Cost USD", min_value=0.0, step=0.0)
+    with c6:
+        # Botón de Agregar
+        st.write("") # Espacio
+        if st.button("Agregar a Tabla", use_container_width=True):
+            new_row = pd.DataFrame({
+                "Offering": [new_offering],
+                "L40": [""], "Go to Conga": [""], "Description": [new_desc],
+                "QTY": [new_qty], "Start Service Date": [date.today()], "End Service Date": [date.today().replace(year=date.today().year + 1)],
+                "Duration": [12.0], "SLC": [new_slc],
+                "Unit Cost USD": [new_cost_usd], "Unit Cost Local": [0.0],
+                "🗑️": [False]
+            })
+            st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
+            st.session_state.df_data = reset_index(st.session_state.df_data)
+            st.rerun()
+
+# ==========================================
+# 6. TABLA DE DATOS (VISUALIZACIÓN Y EDICIÓN RÁPIDA)
+# ==========================================
 
 # Configuración de Columnas
 col_config = {
-    # Offering: width="large" para aprovechar espacio
-    "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="large", required=True),
+    # Offering y SLC también editables aquí, pero el input principal es arriba
+    "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="large"),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
     "Go to Conga": st.column_config.TextColumn("Go to Conga", width="small", disabled=True),
     "Description": st.column_config.TextColumn("Description", width="medium"),
@@ -276,7 +292,7 @@ col_config = {
     "Start Service Date": st.column_config.DateColumn("Start Date", width="small"),
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
-    "SLC": st.column_config.SelectboxColumn("SLC", options=slc_options, width="medium"), # SLC Medium
+    "SLC": st.column_config.SelectboxColumn("SLC", options=slc_options, width="medium"), 
     "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False), 
     "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
     "🗑️": st.column_config.CheckboxColumn("Del", width="small") 
@@ -292,12 +308,12 @@ edited_df = st.data_editor(
 )
 
 # ==========================================
-# 5. ENGINE DE CÁLCULO (Lógica V19)
+# 7. ENGINE DE CÁLCULO
 # ==========================================
 
 if not edited_df.empty:
     
-    # 1. BORRADO DE FILAS
+    # 1. BORRADO DE FILAS (Usando checkbox)
     if "🗑️" in edited_df.columns:
         rows_to_delete = edited_df[edited_df["🗑️"] == True].index
         if not rows_to_delete.empty:
@@ -328,20 +344,20 @@ if not edited_df.empty:
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
 
-        # -- EXTRACCIÓN Y LÓGICA DE MONEDA --
+        # -- EXTRACCIÓN --
         u_cost_usd_raw = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
         u_cost_usd_raw = 0.0 if pd.isna(u_cost_usd_raw) else float(u_cost_usd_raw)
         
         u_cost_local_raw = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
         u_cost_local_raw = 0.0 if pd.isna(u_cost_local_raw) else float(u_cost_local_raw)
         
-        # DECISIÓN CRÍTICA
+        # -- LÓGICA DE MONEDA --
         if currency_mode == "USD":
             base_rate_usd = u_cost_usd_raw
         else:
             base_rate_usd = u_cost_local_raw / safe_er
             
-        # -- TOTAL LÍNEA --
+        # -- TOTAL --
         base_line_total = (base_rate_usd * qty * duration_line * slc_factor)
         line_total_usd = base_line_total + dist_cost_per_row
         
@@ -356,7 +372,7 @@ if not edited_df.empty:
         })
 
     # ==========================================
-    # 6. RESULTADOS FINANCIEROS
+    # 8. RESULTADOS FINANCIEROS
     # ==========================================
     
     st.divider()
