@@ -6,7 +6,7 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS (Ajustes Visuales) ---
+# --- ESTILOS CSS (Ajustes Visuales: Compacto y Sin Flechas) ---
 st.markdown("""
     <style>
     /* 1. Reducir espacio superior */
@@ -47,7 +47,7 @@ st.markdown("""
         width: 100% !important;
     }
     
-    /* 5. Botones de acción visibles */
+    /* 5. Botones de acción */
     div.stButton > button {
         width: 100%;
         border-radius: 5px;
@@ -175,7 +175,7 @@ if "df_data" not in st.session_state:
         "Duration": [12.0],
         "SLC": ["9X5NBD"],
         "Unit Cost USD": [100.0],
-        "Unit Cost Local": [0.0] # Independiente, inicia en 0 o lo que se desee
+        "Unit Cost Local": [0.0] 
     }
     st.session_state.df_data = pd.DataFrame(data)
 
@@ -199,7 +199,7 @@ with col_act2:
             st.session_state.df_data = st.session_state.df_data.iloc[:-1]
             st.rerun()
 
-# CONFIGURACIÓN DE COLUMNAS (Ambos campos Editables e Independientes)
+# CONFIGURACIÓN DE COLUMNAS (Independientes)
 col_config = {
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="medium", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
@@ -210,7 +210,7 @@ col_config = {
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
     "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
-    # SIN 'disabled', ambos siempre editables
+    # Ambos editables
     "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False),
     "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False)
 }
@@ -224,7 +224,7 @@ edited_df = st.data_editor(
 )
 
 # ==========================================
-# 5. ENGINE DE CÁLCULO (Independiente)
+# 5. ENGINE DE CÁLCULO (Robustecido)
 # ==========================================
 
 if not edited_df.empty:
@@ -249,24 +249,23 @@ if not edited_df.empty:
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
 
-        # 2. EXTRACCIÓN DE COSTOS (Independientes)
-        try: u_cost_usd_input = float(row.get("Unit Cost USD", 0))
-        except: u_cost_usd_input = 0.0
+        # 2. EXTRACCIÓN DE COSTOS (Robustez Extrema)
+        # Usamos pd.to_numeric para convertir cualquier string o nulo a número válido
+        u_cost_usd_input = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
+        u_cost_usd_input = 0.0 if pd.isna(u_cost_usd_input) else float(u_cost_usd_input)
         
-        try: u_cost_local_input = float(row.get("Unit Cost Local", 0))
-        except: u_cost_local_input = 0.0
+        u_cost_local_input = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
+        u_cost_local_input = 0.0 if pd.isna(u_cost_local_input) else float(u_cost_local_input)
         
         # 3. LÓGICA DE CÁLCULO SEGÚN MODO
-        # La independencia significa que no se sobrescriben, 
-        # pero el motor necesita saber cuál usar para el total.
-        # Usamos 'Currency Mode' como el interruptor de decisión.
-        
         if currency_mode == "USD":
-            # Usar lo que haya en la columna USD
+            # Modo USD: Usamos el campo USD directo
             base_rate_for_calc = u_cost_usd_input
         else:
-            # Usar lo que haya en la columna Local y convertir a USD para el motor interno
-            base_rate_for_calc = u_cost_local_input / er_val if er_val else 0.0
+            # Modo Local: Usamos el campo Local y dividimos por tasa
+            # Protección contra tasa 0 o nula
+            safe_er = er_val if er_val and er_val > 0 else 1.0
+            base_rate_for_calc = u_cost_local_input / safe_er
             
         # 4. Totales
         base_line_total = (base_rate_for_calc * qty * duration_line * slc_factor)
