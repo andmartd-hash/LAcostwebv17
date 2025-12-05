@@ -193,8 +193,8 @@ if "df_data" not in st.session_state:
         "Duration": [12.0],
         "SLC": ["9X5NBD"],
         "Unit Cost USD": [100.0],
-        "Unit Cost Local": [0.0], # Independiente
-        "🗑️": [False] # Columna de borrado
+        "Unit Cost Local": [0.0], 
+        "🗑️": [False] 
     }
     st.session_state.df_data = pd.DataFrame(data)
 
@@ -226,8 +226,8 @@ col_config = {
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
     "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
-    "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False),
-    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
+    "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False), # Editable
+    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False), # Editable
     "🗑️": st.column_config.CheckboxColumn("Del", width="small", help="Borrar") 
 }
 
@@ -252,9 +252,6 @@ if not edited_df.empty:
         if not rows_to_delete.empty:
             st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
             st.rerun()
-
-    # NOTA: Se eliminó la sincronización de edited_rows. 
-    # Los campos 'Unit Cost USD' y 'Unit Cost Local' son ahora 100% independientes en la interfaz.
 
     # 3. CÁLCULO DE TOTALES
     rows_count = len(edited_df)
@@ -282,12 +279,16 @@ if not edited_df.empty:
         
         safe_er = er_val if er_val and er_val > 0 else 1.0
 
-        # LÓGICA DE SELECCIÓN PARA TOTALES
+        # LÓGICA DE SELECCIÓN PARA TOTALES (CORREGIDA)
         if currency_mode == "USD":
-            # Modo USD: Tomamos la columna USD tal cual
+            # Si estoy en modo USD:
+            # - Tomo el valor digitado en USD.
+            # - Si quiero mostrar el valor local, seria USD * ER (pero NO modifico el input).
             base_rate_usd = u_cost_usd_val
         else:
-            # Modo Local: Tomamos la columna Local y convertimos a USD para sumar
+            # Si estoy en modo Local:
+            # - Tomo el valor digitado en Local.
+            # - Lo convierto a USD para el calculo total (Local / ER).
             base_rate_usd = u_cost_local_val / safe_er
             
         base_line_total = (base_rate_usd * qty * duration_line * slc_factor)
