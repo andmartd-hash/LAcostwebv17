@@ -1,23 +1,24 @@
 import streamlit as st
 import pandas as pd
+import numpy as np  # Necesario para ajustar el índice
 from datetime import date
 import io
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS (Letra Pequeña y Compacto) ---
+# --- ESTILOS CSS REFORZADOS ---
 st.markdown("""
     <style>
-    /* 1. Ajustes Generales */
+    /* 1. SUBIR SECCIONES */
     .block-container {
         padding-top: 0.5rem !important;
         margin-top: 0rem !important;
     }
     
-    /* 2. Sidebar Compacto */
+    /* 2. SIDEBAR AJUSTADO */
     section[data-testid="stSidebar"] {
-        width: 250px !important;
+        width: 300px !important; /* Un poco más ancho para que quepan los textos */
         padding-top: 1rem !important;
     }
     section[data-testid="stSidebar"] label {
@@ -29,8 +30,13 @@ st.markdown("""
         height: 1.8rem;
         min-height: 1.8rem;
     }
+    /* Ajuste para que los textos largos en dropdowns del sidebar se vean mejor */
+    div[data-baseweb="select"] > div {
+        font-size: 11px !important;
+        white-space: normal !important; /* Permitir salto de línea si es necesario */
+    }
     
-    /* 3. Inputs Numéricos Limpios */
+    /* 3. INPUTS NUMÉRICOS SIN FLECHAS */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
@@ -40,26 +46,32 @@ st.markdown("""
         -moz-appearance: textfield;
     }
     
-    /* 4. Tabla de Datos Ultra Compacta */
+    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL */
     div[data-testid="stDataEditor"] table {
         font-size: 10px !important;
     }
     div[data-testid="stDataEditor"] th {
         font-size: 10px !important;
         padding: 2px !important;
+        min-width: 80px !important;
     }
     div[data-testid="stDataEditor"] td {
         font-size: 10px !important;
         padding: 2px !important;
     }
     
-    /* 5. Botones */
+    /* 5. ANCHO COMPLETO */
+    .stDataFrame, iframe[title="streamlit.data_editor"] {
+        width: 100% !important;
+    }
+    
+    /* Botones generales */
     div.stButton > button {
         width: 100%;
-        border-radius: 4px;
-        font-size: 11px !important;
-        padding: 4px;
+        border-radius: 5px;
         font-weight: bold;
+        font-size: 11px !important;
+        padding: 0.2rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -127,14 +139,20 @@ def calc_months(start, end):
         return round(days / 30.44, 1)
     except: return 0.0
 
+def reset_index(df):
+    """Reinicia el índice para que empiece en 1."""
+    df.reset_index(drop=True, inplace=True)
+    df.index = np.arange(1, len(df) + 1)
+    return df
+
 # ==========================================
-# 3. INTERFAZ: INITIAL INFORMATION
+# 3. INTERFAZ: SIDEBAR
 # ==========================================
 
 st.title("🌐 LacostWeb ver19")
 
 with st.sidebar:
-    st.markdown("### Initial Information")
+    st.markdown("### Input Data") # CORRECCIÓN 1: Cambio de título
     
     country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
     country_data = DB_COUNTRIES[country]
@@ -160,7 +178,7 @@ with st.sidebar:
     contract_period = calc_months(start_date, end_date)
     st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
     
-    # Input Póliza Limpio
+    # Input Póliza
     dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0, format="%.2f")
     
     st.markdown("---")
@@ -189,8 +207,9 @@ if "df_data" not in st.session_state:
         "🗑️": [False] 
     }
     st.session_state.df_data = pd.DataFrame(data)
+    st.session_state.df_data = reset_index(st.session_state.df_data) # CORRECCIÓN 2: Inicio en 1
 
-# Fix para evitar KeyError en sesiones viejas
+# Fix para evitar KeyError
 if "🗑️" not in st.session_state.df_data.columns:
     st.session_state.df_data["🗑️"] = False
 
@@ -205,11 +224,13 @@ if st.button("➕ Agregar Fila", use_container_width=True):
         "🗑️": [False]
     })
     st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
+    st.session_state.df_data = reset_index(st.session_state.df_data) # Re-indexar al agregar
     st.rerun()
 
-# Configuración Columnas (Campos Independientes)
+# Configuración Columnas
 col_config = {
-    "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="medium", required=True),
+    # CORRECCIÓN 3: Ancho "large" para que se vea el nombre completo del Offering
+    "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="large", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
     "Go to Conga": st.column_config.TextColumn("Go to Conga", width="small", disabled=True),
     "Description": st.column_config.TextColumn("Description", width="small"),
@@ -223,7 +244,7 @@ col_config = {
     "🗑️": st.column_config.CheckboxColumn("Del", width="small") 
 }
 
-# EDITOR (Sin callbacks, puro input)
+# EDITOR
 edited_df = st.data_editor(
     st.session_state.df_data,
     num_rows="fixed", 
@@ -242,13 +263,14 @@ if not edited_df.empty:
     if "🗑️" in edited_df.columns:
         rows_to_delete = edited_df[edited_df["🗑️"] == True].index
         if not rows_to_delete.empty:
-            st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
+            # Al borrar, usamos reset_index y ajustamos para que empiece en 1 de nuevo
+            st.session_state.df_data = edited_df.drop(rows_to_delete)
+            st.session_state.df_data = reset_index(st.session_state.df_data)
             st.rerun()
 
     # 2. CÁLCULO DE TOTALES
     rows_count = len(edited_df)
     dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
-    
     calculated_rows = []
     total_cost_usd_accum = 0.0
     
@@ -276,13 +298,10 @@ if not edited_df.empty:
         u_cost_local_raw = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
         u_cost_local_raw = 0.0 if pd.isna(u_cost_local_raw) else float(u_cost_local_raw)
         
-        # DECISIÓN CRÍTICA: ¿Qué valor uso para el total?
+        # DECISIÓN CRÍTICA
         if currency_mode == "USD":
-            # Si el selector dice USD -> Tomo la columna USD.
             base_rate_usd = u_cost_usd_raw
         else:
-            # Si el selector dice Local -> Tomo la columna Local y la convierto a USD para el total.
-            # Local / ER = USD
             base_rate_usd = u_cost_local_raw / safe_er
             
         # -- TOTAL LÍNEA --
@@ -318,8 +337,6 @@ if not edited_df.empty:
     sym = country_data['Curr'] if currency_mode == "Local" else "USD"
     
     k1, k2, k3, k4 = st.columns(4)
-    
-    # Indicador de fuente
     source_label = "USD" if currency_mode == "USD" else "Local"
     
     k1.metric(f"TOTAL COST (Base: {source_label})", f"{total_cost_usd_accum * factor:,.2f} {sym}")
@@ -327,12 +344,10 @@ if not edited_df.empty:
     k3.metric(f"SELL PRICE (Revenue)", f"{sell_price * factor:,.2f} {sym}")
     k4.metric("FINAL PRICE (+Tax)", f"{final_price * factor:,.2f} {sym}")
     
-    # EXPORTACIÓN
     if st.button("💾 Descargar Excel Calculado"):
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df_export = pd.DataFrame(calculated_rows)
-            # Limpiar columnas internas
             cols_drop = ["_LineTotalUSD", "🗑️"]
             df_export = df_export.drop(columns=[c for c in cols_drop if c in df_export.columns])
             df_export.to_excel(writer, sheet_name='Input Processed', index=False)
