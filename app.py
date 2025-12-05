@@ -9,18 +9,18 @@ st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐"
 # --- ESTILOS CSS (Ajustes Visuales) ---
 st.markdown("""
     <style>
-    /* 1. Reducir espacio superior (Subir secciones) */
+    /* 1. Reducir espacio superior */
     .block-container {
         padding-top: 1rem !important;
         padding-bottom: 1rem !important;
         margin-top: 0 !important;
     }
     
-    /* 2. Reducir tamaño fuente Sidebar */
+    /* 2. Sidebar Compacto */
     section[data-testid="stSidebar"] {
         font-size: 11px !important;
         width: 260px !important;
-        padding-top: 0rem !important; /* Subir contenido del sidebar también */
+        padding-top: 0rem !important;
     }
     section[data-testid="stSidebar"] label {
         font-size: 11px !important;
@@ -33,17 +33,11 @@ st.markdown("""
     }
     
     /* 3. Quitar botones +/- de inputs numéricos */
-    /* Para navegadores Webkit (Chrome, Safari) */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
         margin: 0; 
     }
-    /* Para Firefox */
-    input[type=number] {
-        -moz-appearance: textfield;
-    }
-    /* Ocultar botones de Streamlit específicamente */
     [data-testid="stNumberInputStepUp"], [data-testid="stNumberInputStepDown"] {
         display: none !important;
     }
@@ -53,7 +47,7 @@ st.markdown("""
         width: 100% !important;
     }
     
-    /* 5. Botones de acción visibles y grandes */
+    /* 5. Botones de acción visibles */
     div.stButton > button {
         width: 100%;
         border-radius: 5px;
@@ -132,13 +126,13 @@ def calc_months(start, end):
 st.title("🌐 LacostWeb ver19")
 
 with st.sidebar:
-    st.markdown("### Initial Information")  # CAMBIO REALIZADO
+    st.markdown("### Initial Information")
     
     country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
     country_data = DB_COUNTRIES[country]
     er_val = country_data['ER'] if country_data['ER'] else 1.0
     
-    # Este selector ahora solo controla la vista, ambos campos son editables
+    # Selector de Moneda: Define qué columna se usa para el cálculo TOTAL
     currency_mode = st.radio("Currency Mode", ["USD", "Local"], horizontal=True)
     st.caption(f"Tasa {country_data['Curr']}: {er_val:,.2f}")
 
@@ -151,25 +145,24 @@ with st.sidebar:
     customer_number = st.text_input("Customer Number", "000000")
     
     col_d1, col_d2 = st.columns(2)
-    start_date = col_d1.date_input("Start Date", date.today())
-    end_date = col_d2.date_input("End Date", date.today().replace(year=date.today().year + 1))
+    start_date = col_d1.date_input("Contract Start Date", date.today())
+    end_date = col_d2.date_input("Contract End Date", date.today().replace(year=date.today().year + 1))
     
     contract_period = calc_months(start_date, end_date)
     st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
     
-    # Input Póliza sin botones +/- (step=0.0 elimina los controles en Streamlit)
+    # Input Póliza (sin botones +/-)
     dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0)
     
     st.markdown("---")
     target_gp = st.slider("Target GP %", 0.0, 1.0, 0.40, 0.01)
 
 # ==========================================
-# 4. GESTIÓN DE ESTADO Y TABLA
+# 4. GESTIÓN DE TABLA
 # ==========================================
 
 st.subheader("📋 TABLA DE DATOS (CENTRO)")
 
-# Inicializar Dataframe
 if "df_data" not in st.session_state:
     data = {
         "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
@@ -182,11 +175,11 @@ if "df_data" not in st.session_state:
         "Duration": [12.0],
         "SLC": ["9X5NBD"],
         "Unit Cost USD": [100.0],
-        "Unit Cost Local": [100.0 * er_val]
+        "Unit Cost Local": [0.0] # Independiente, inicia en 0 o lo que se desee
     }
     st.session_state.df_data = pd.DataFrame(data)
 
-# --- BOTONES DE ACCIÓN (VISIBLES ARRIBA) ---
+# BOTONES DE ACCIÓN
 col_act1, col_act2, col_act3 = st.columns([1, 1, 5])
 with col_act1:
     if st.button("➕ Agregar Fila", use_container_width=True):
@@ -206,8 +199,7 @@ with col_act2:
             st.session_state.df_data = st.session_state.df_data.iloc[:-1]
             st.rerun()
 
-# --- CONFIGURACIÓN DE COLUMNAS ---
-# Ambos costos son editables (disabled=False por defecto)
+# CONFIGURACIÓN DE COLUMNAS (Ambos campos Editables e Independientes)
 col_config = {
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="medium", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
@@ -218,13 +210,11 @@ col_config = {
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
     "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
-    # AMBOS CAMPOS EDITABLES
-    "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=True),
-    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=True)
+    # SIN 'disabled', ambos siempre editables
+    "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False),
+    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False)
 }
 
-# --- EDITOR DE DATOS ---
-# Usamos num_rows="fixed" para que los botones controlen la filas
 edited_df = st.data_editor(
     st.session_state.df_data,
     num_rows="fixed", 
@@ -234,56 +224,18 @@ edited_df = st.data_editor(
 )
 
 # ==========================================
-# 5. ENGINE DE CÁLCULO (Bidireccional)
+# 5. ENGINE DE CÁLCULO (Independiente)
 # ==========================================
 
 if not edited_df.empty:
     
-    # Detectar cambios específicos para sincronizar monedas
-    # Accedemos al estado del editor para saber qué celda cambió exactamente
-    editor_state = st.session_state.get("main_editor", {})
-    edited_rows = editor_state.get("edited_rows", {})
-    
-    # Flag para saber si necesitamos actualizar la tabla visualmente
-    needs_rerun = False
-    
-    # Procesamiento
     rows_count = len(edited_df)
     dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
-    
     calculated_rows = []
     total_cost_usd_accum = 0.0
     
     for idx, row in edited_df.iterrows():
-        
-        # 1. Lógica de Sincronización de Moneda
-        # Si el usuario editó esta fila en el editor...
-        u_cost_usd = float(row.get("Unit Cost USD", 0))
-        u_cost_local = float(row.get("Unit Cost Local", 0))
-        
-        if idx in edited_rows:
-            changes = edited_rows[idx]
-            if "Unit Cost Local" in changes:
-                # Usuario editó Local -> Recalcular USD
-                u_cost_local = float(changes["Unit Cost Local"])
-                u_cost_usd = u_cost_local / er_val if er_val else 0.0
-                # Actualizamos el dataframe base para persistir el cambio
-                st.session_state.df_data.at[idx, "Unit Cost USD"] = u_cost_usd
-                st.session_state.df_data.at[idx, "Unit Cost Local"] = u_cost_local
-                needs_rerun = True
-            elif "Unit Cost USD" in changes:
-                # Usuario editó USD -> Recalcular Local
-                u_cost_usd = float(changes["Unit Cost USD"])
-                u_cost_local = u_cost_usd * er_val
-                st.session_state.df_data.at[idx, "Unit Cost USD"] = u_cost_usd
-                st.session_state.df_data.at[idx, "Unit Cost Local"] = u_cost_local
-                needs_rerun = True
-        
-        # Si no hubo edición directa, aseguramos consistencia basada en el modo actual
-        # (Opcional: Si cambias de país, esto actualiza todo)
-        # Por defecto confiamos en el valor que está en el DF
-        
-        # 2. Resto de cálculos
+        # 1. Info Base
         off_name = str(row.get("Offering", ""))
         off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
         
@@ -296,9 +248,30 @@ if not edited_df.empty:
         
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
+
+        # 2. EXTRACCIÓN DE COSTOS (Independientes)
+        try: u_cost_usd_input = float(row.get("Unit Cost USD", 0))
+        except: u_cost_usd_input = 0.0
+        
+        try: u_cost_local_input = float(row.get("Unit Cost Local", 0))
+        except: u_cost_local_input = 0.0
+        
+        # 3. LÓGICA DE CÁLCULO SEGÚN MODO
+        # La independencia significa que no se sobrescriben, 
+        # pero el motor necesita saber cuál usar para el total.
+        # Usamos 'Currency Mode' como el interruptor de decisión.
+        
+        if currency_mode == "USD":
+            # Usar lo que haya en la columna USD
+            base_rate_for_calc = u_cost_usd_input
+        else:
+            # Usar lo que haya en la columna Local y convertir a USD para el motor interno
+            base_rate_for_calc = u_cost_local_input / er_val if er_val else 0.0
             
-        base_line = (u_cost_usd * qty * duration_line * slc_factor)
-        line_total_usd = base_line + dist_cost_per_row
+        # 4. Totales
+        base_line_total = (base_rate_for_calc * qty * duration_line * slc_factor)
+        line_total_usd = base_line_total + dist_cost_per_row
+        
         total_cost_usd_accum += line_total_usd
         
         calculated_rows.append({
@@ -306,17 +279,11 @@ if not edited_df.empty:
             "L40": off_db["L40"],
             "Go to Conga": off_db["Conga"],
             "Duration": duration_line,
-            "Unit Cost USD": u_cost_usd,
-            "Unit Cost Local": u_cost_local,
             "_LineTotalUSD": line_total_usd
         })
 
-    # Si hubo sincronización de monedas, recargamos la app para que la tabla se actualice
-    if needs_rerun:
-        st.rerun()
-
     # ==========================================
-    # 6. RESULTADOS
+    # 6. RESULTADOS FINANCIEROS
     # ==========================================
     
     st.divider()
@@ -334,7 +301,10 @@ if not edited_df.empty:
     sym = country_data['Curr'] if currency_mode == "Local" else "USD"
     
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("TOTAL COST", f"{total_cost_usd_accum * factor:,.2f} {sym}")
+    # Indicamos qué moneda se usó como base para evitar confusión
+    source_msg = "(Base: USD)" if currency_mode == "USD" else "(Base: Local)"
+    
+    k1.metric(f"TOTAL COST {source_msg}", f"{total_cost_usd_accum * factor:,.2f} {sym}")
     k2.metric(f"CONTINGENCY ({risk_pct*100}%)", f"{contingency_val * factor:,.2f} {sym}")
     k3.metric(f"SELL PRICE (Revenue)", f"{sell_price * factor:,.2f} {sym}")
     k4.metric("FINAL PRICE (+Tax)", f"{final_price * factor:,.2f} {sym}")
@@ -347,8 +317,8 @@ if not edited_df.empty:
             df_export.to_excel(writer, sheet_name='Input Processed', index=False)
             
             summary_data = {
-                "KPI": ["Customer", "Risk", "Total Cost USD", "Sell Price USD", "Final Price USD", "GP Target"],
-                "Value": [customer_name, risk_pct, total_cost_usd_accum, sell_price, final_price, target_gp]
+                "KPI": ["Customer", "Risk", "Total Cost USD", "Sell Price USD", "Final Price USD", "GP Target", "Calculation Mode"],
+                "Value": [customer_name, risk_pct, total_cost_usd_accum, sell_price, final_price, target_gp, currency_mode]
             }
             pd.DataFrame(summary_data).to_excel(writer, sheet_name='Pricing Summary', index=False)
             
