@@ -9,10 +9,10 @@ st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐"
 # --- ESTILOS CSS (Ajustes Visuales) ---
 st.markdown("""
     <style>
-    /* Sidebar Compacto */
+    /* 1. Reducir tamaño fuente Sidebar */
     section[data-testid="stSidebar"] {
         font-size: 11px !important;
-        width: 250px !important;
+        width: 260px !important;
     }
     section[data-testid="stSidebar"] label {
         font-size: 11px !important;
@@ -23,20 +23,21 @@ st.markdown("""
         height: 1.8rem;
         min-height: 1.8rem;
     }
-    /* Ocultar flechas numéricas */
+    /* 2. Quitar botones +/- de inputs numéricos */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
         margin: 0; 
     }
-    /* Tabla Ancho Completo */
+    /* 3. Tabla Ancho Completo */
     .stDataFrame, iframe[title="streamlit.data_editor"] {
         width: 100% !important;
     }
-    /* Botones de acción */
+    /* 4. Botones de acción visibles y grandes */
     div.stButton > button {
         width: 100%;
-        padding: 0.2rem;
+        border-radius: 5px;
+        font-weight: bold;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -79,7 +80,7 @@ DB_SLC = [
 ]
 
 # ==========================================
-# 2. MOTORES LÓGICOS
+# 2. LOGICA DE NEGOCIO
 # ==========================================
 
 def get_slc_factor(country, slc_code):
@@ -105,7 +106,7 @@ def calc_months(start, end):
     except: return 0.0
 
 # ==========================================
-# 3. INTERFAZ: TABLA SIDEBAR (IZQUIERDA)
+# 3. INTERFAZ: SIDEBAR
 # ==========================================
 
 st.title("🌐 LacostWeb ver19")
@@ -117,8 +118,8 @@ with st.sidebar:
     country_data = DB_COUNTRIES[country]
     er_val = country_data['ER'] if country_data['ER'] else 1.0
     
-    # Selector de Moneda (Controla qué campo es editable)
-    currency_mode = st.radio("Currency", ["USD", "Local"], horizontal=True)
+    # Este selector ahora solo controla la vista, ambos campos son editables
+    currency_mode = st.radio("Currency Mode", ["USD", "Local"], horizontal=True)
     st.caption(f"Tasa {country_data['Curr']}: {er_val:,.2f}")
 
     risk_col1, risk_col2 = st.columns([0.7, 0.3])
@@ -130,24 +131,25 @@ with st.sidebar:
     customer_number = st.text_input("Customer Number", "000000")
     
     col_d1, col_d2 = st.columns(2)
-    start_date = col_d1.date_input("Contract Start Date", date.today())
-    end_date = col_d2.date_input("Contract End Date", date.today().replace(year=date.today().year + 1))
+    start_date = col_d1.date_input("Start Date", date.today())
+    end_date = col_d2.date_input("End Date", date.today().replace(year=date.today().year + 1))
     
     contract_period = calc_months(start_date, end_date)
-    st.text_input("Contract Period", value=f"{contract_period}", disabled=True)
+    st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
     
-    # Sin botones +/- (CSS)
-    dist_cost = st.number_input("Distributed Cost (Poliza/Fianza)", min_value=0.0, value=100.0, step=0.0)
+    # Input Póliza sin botones +/-
+    dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0)
     
     st.markdown("---")
     target_gp = st.slider("Target GP %", 0.0, 1.0, 0.40, 0.01)
 
 # ==========================================
-# 4. TABLA DE DATOS (CENTRO)
+# 4. GESTIÓN DE ESTADO Y TABLA
 # ==========================================
 
 st.subheader("📋 TABLA DE DATOS (CENTRO)")
 
+# Inicializar Dataframe
 if "df_data" not in st.session_state:
     data = {
         "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
@@ -164,10 +166,10 @@ if "df_data" not in st.session_state:
     }
     st.session_state.df_data = pd.DataFrame(data)
 
-# BOTONES DE ACCIÓN VISIBLES
-col_act1, col_act2, col_act3 = st.columns([1, 1, 6])
+# --- BOTONES DE ACCIÓN (VISIBLES ARRIBA) ---
+col_act1, col_act2, col_act3 = st.columns([1, 1, 5])
 with col_act1:
-    if st.button("➕ Agregar"):
+    if st.button("➕ Agregar Fila", use_container_width=True):
         new_row = pd.DataFrame({
             "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
             "L40": [""], "Go to Conga": [""], "Description": [""],
@@ -177,29 +179,32 @@ with col_act1:
         })
         st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
         st.rerun()
+
 with col_act2:
-    if st.button("🗑️ Eliminar"):
+    if st.button("🗑️ Eliminar Fila", use_container_width=True):
         if len(st.session_state.df_data) > 0:
             st.session_state.df_data = st.session_state.df_data.iloc[:-1]
             st.rerun()
 
-# CONFIGURACIÓN DE COLUMNAS (Nombres Exactos y Ancho Reducido)
+# --- CONFIGURACIÓN DE COLUMNAS ---
+# Ambos costos son editables (disabled=False por defecto)
 col_config = {
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="medium", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
     "Go to Conga": st.column_config.TextColumn("Go to Conga", width="small", disabled=True),
     "Description": st.column_config.TextColumn("Description", width="small"),
     "QTY": st.column_config.NumberColumn("QTY", width="small", min_value=1),
-    "Start Service Date": st.column_config.DateColumn("Start Service Date", width="small"),
-    "End Service Date": st.column_config.DateColumn("End Service Date", width="small"),
-    "Duration": st.column_config.NumberColumn("Duration", width="small", disabled=True),
+    "Start Service Date": st.column_config.DateColumn("Start Date", width="small"),
+    "End Service Date": st.column_config.DateColumn("End Date", width="small"),
+    "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
     "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
-    # Edición Condicional: Si Currency es USD, editas USD. Si es Local, editas Local.
-    "Unit Cost USD": st.column_config.NumberColumn("Unit Cost USD", width="small", required=True, disabled=(currency_mode=="Local")),
-    "Unit Cost Local": st.column_config.NumberColumn("Unit Cost Local", width="small", required=True, disabled=(currency_mode=="USD"))
+    # AMBOS CAMPOS EDITABLES
+    "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=True),
+    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=True)
 }
 
-# EDITOR FIJO (Sin num_rows dynamic para usar nuestros botones)
+# --- EDITOR DE DATOS ---
+# Usamos num_rows="fixed" para que los botones controlen la filas
 edited_df = st.data_editor(
     st.session_state.df_data,
     num_rows="fixed", 
@@ -209,42 +214,66 @@ edited_df = st.data_editor(
 )
 
 # ==========================================
-# 5. ENGINE DE CÁLCULO
+# 5. ENGINE DE CÁLCULO (Bidireccional)
 # ==========================================
 
 if not edited_df.empty:
     
+    # Detectar cambios específicos para sincronizar monedas
+    # Accedemos al estado del editor para saber qué celda cambió exactamente
+    editor_state = st.session_state.get("main_editor", {})
+    edited_rows = editor_state.get("edited_rows", {})
+    
+    # Flag para saber si necesitamos actualizar la tabla visualmente
+    needs_rerun = False
+    
+    # Procesamiento
     rows_count = len(edited_df)
     dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
+    
     calculated_rows = []
     total_cost_usd_accum = 0.0
     
     for idx, row in edited_df.iterrows():
-        # -- 1. Auto-fill --
+        
+        # 1. Lógica de Sincronización de Moneda
+        # Si el usuario editó esta fila en el editor...
+        u_cost_usd = float(row.get("Unit Cost USD", 0))
+        u_cost_local = float(row.get("Unit Cost Local", 0))
+        
+        if idx in edited_rows:
+            changes = edited_rows[idx]
+            if "Unit Cost Local" in changes:
+                # Usuario editó Local -> Recalcular USD
+                u_cost_local = float(changes["Unit Cost Local"])
+                u_cost_usd = u_cost_local / er_val if er_val else 0.0
+                # Actualizamos el dataframe base para persistir el cambio
+                st.session_state.df_data.at[idx, "Unit Cost USD"] = u_cost_usd
+                st.session_state.df_data.at[idx, "Unit Cost Local"] = u_cost_local
+                needs_rerun = True
+            elif "Unit Cost USD" in changes:
+                # Usuario editó USD -> Recalcular Local
+                u_cost_usd = float(changes["Unit Cost USD"])
+                u_cost_local = u_cost_usd * er_val
+                st.session_state.df_data.at[idx, "Unit Cost USD"] = u_cost_usd
+                st.session_state.df_data.at[idx, "Unit Cost Local"] = u_cost_local
+                needs_rerun = True
+        
+        # Si no hubo edición directa, aseguramos consistencia basada en el modo actual
+        # (Opcional: Si cambias de país, esto actualiza todo)
+        # Por defecto confiamos en el valor que está en el DF
+        
+        # 2. Resto de cálculos
         off_name = str(row.get("Offering", ""))
         off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
         
-        # -- 2. Fechas --
         s_date = row.get("Start Service Date")
         e_date = row.get("End Service Date")
         duration_line = calc_months(s_date, e_date)
-            
-        # -- 3. COSTOS (Bidireccional) --
-        # Si editamos USD, calculamos Local. Si editamos Local, calculamos USD.
-        if currency_mode == "USD":
-            try: u_cost_usd = float(row.get("Unit Cost USD", 0))
-            except: u_cost_usd = 0.0
-            u_cost_local = u_cost_usd * er_val
-        else:
-            try: u_cost_local = float(row.get("Unit Cost Local", 0))
-            except: u_cost_local = 0.0
-            u_cost_usd = u_cost_local / er_val if er_val else 0.0
         
-        # -- 4. Factor --
         slc_val = row.get("SLC", "")
         slc_factor = get_slc_factor(country, slc_val)
         
-        # -- 5. Totales --
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
             
@@ -261,9 +290,13 @@ if not edited_df.empty:
             "Unit Cost Local": u_cost_local,
             "_LineTotalUSD": line_total_usd
         })
-        
+
+    # Si hubo sincronización de monedas, recargamos la app para que la tabla se actualice
+    if needs_rerun:
+        st.rerun()
+
     # ==========================================
-    # 6. RESULTADOS FINANCIEROS
+    # 6. RESULTADOS
     # ==========================================
     
     st.divider()
@@ -276,6 +309,7 @@ if not edited_df.empty:
     taxes = sell_price * country_data['Tax']
     final_price = sell_price + taxes
     
+    # Visualización
     factor = er_val if currency_mode == "Local" else 1.0
     sym = country_data['Curr'] if currency_mode == "Local" else "USD"
     
