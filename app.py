@@ -9,7 +9,7 @@ st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐"
 # --- ESTILOS CSS REFORZADOS ---
 st.markdown("""
     <style>
-    /* 1. SUBIR SECCIONES (Reducir padding superior) */
+    /* 1. SUBIR SECCIONES */
     .block-container {
         padding-top: 1rem !important;
         margin-top: 0rem !important;
@@ -32,7 +32,7 @@ st.markdown("""
         min-height: 2rem;
     }
     
-    /* 3. QUITAR BOTONES +/- (Solución Cross-Browser para Distributed Cost) */
+    /* 3. INPUTS NUMÉRICOS SIN FLECHAS */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
@@ -42,11 +42,17 @@ st.markdown("""
         -moz-appearance: textfield;
     }
     
-    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL (Agresivo) */
-    div[data-testid="stDataEditor"] * {
-        font-size: 12px !important;
+    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL (Títulos y Datos) */
+    div[data-testid="stDataEditor"] table {
+        font-size: 10px !important; /* Letra más pequeña */
+    }
+    div[data-testid="stDataEditor"] th {
+        font-size: 10px !important; /* Títulos pequeños */
+        min-width: 80px !important; /* Asegurar que se vean */
+        padding: 4px !important;
     }
     div[data-testid="stDataEditor"] td {
+        font-size: 10px !important;
         padding-top: 2px !important;
         padding-bottom: 2px !important;
     }
@@ -61,6 +67,8 @@ st.markdown("""
         width: 100%;
         border-radius: 5px;
         font-weight: bold;
+        font-size: 12px !important;
+        padding: 0.2rem;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -162,7 +170,7 @@ with st.sidebar:
     contract_period = calc_months(start_date, end_date)
     st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
     
-    # CORRECCIÓN 1: Input Póliza sin botones (step=0.0)
+    # Input Póliza sin botones (step=0.0)
     dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0, format="%.2f")
     
     st.markdown("---")
@@ -191,8 +199,7 @@ if "df_data" not in st.session_state:
     }
     st.session_state.df_data = pd.DataFrame(data)
 
-# >>> CORRECCIÓN CLAVE: Migración de datos para evitar KeyError <<<
-# Si por alguna razón la columna de borrado no existe (sesión vieja), la creamos.
+# Auto-corrección de columnas
 if "🗑️" not in st.session_state.df_data.columns:
     st.session_state.df_data["🗑️"] = False
 
@@ -220,13 +227,13 @@ col_config = {
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
     "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
+    # Ambos editables
     "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False),
     "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
-    # CORRECCIÓN 4: Botón de borrado pequeño al final
     "🗑️": st.column_config.CheckboxColumn("Del", width="small", help="Marcar para borrar fila") 
 }
 
-# EDITOR (Con session_state para detectar cambios)
+# EDITOR
 edited_df = st.data_editor(
     st.session_state.df_data,
     num_rows="fixed", 
@@ -236,81 +243,60 @@ edited_df = st.data_editor(
 )
 
 # ==========================================
-# 5. ENGINE DE CÁLCULO & SINCRONIZACIÓN
+# 5. ENGINE DE CÁLCULO (Lógica Corregida)
 # ==========================================
 
 if not edited_df.empty:
     
-    # 1. LÓGICA DE BORRADO DE FILAS
-    # Verificamos primero si la columna existe en el dataframe editado para evitar errores
+    # 1. BORRADO
     if "🗑️" in edited_df.columns:
         rows_to_delete = edited_df[edited_df["🗑️"] == True].index
         if not rows_to_delete.empty:
             st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
             st.rerun()
 
-    # 2. SINCRONIZACIÓN DE MONEDAS
-    editor_state = st.session_state.get("main_editor", {})
-    edited_cells = editor_state.get("edited_rows", {})
-    
-    needs_rerun = False
-    
-    for idx, changes in edited_cells.items():
-        if idx not in st.session_state.df_data.index: continue
-        
-        # Sincronización Bidireccional
-        if "Unit Cost Local" in changes:
-            new_local = float(changes["Unit Cost Local"])
-            new_usd = new_local / er_val if er_val else 0.0
-            st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
-            st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
-            needs_rerun = True
-            
-        elif "Unit Cost USD" in changes:
-            new_usd = float(changes["Unit Cost USD"])
-            new_local = new_usd * er_val
-            st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
-            st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
-            needs_rerun = True
-
-    if needs_rerun:
-        st.rerun()
-
-    # 3. CÁLCULO DE TOTALES
+    # 2. CÁLCULO DE TOTALES Y MONEDA
     rows_count = len(edited_df)
     dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
     calculated_rows = []
     total_cost_usd_accum = 0.0
     
     for idx, row in edited_df.iterrows():
+        # Info Base
         off_name = str(row.get("Offering", ""))
         off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
-        
         s_date = row.get("Start Service Date")
         e_date = row.get("End Service Date")
         duration_line = calc_months(s_date, e_date)
-        
         slc_val = row.get("SLC", "")
         slc_factor = get_slc_factor(country, slc_val)
-        
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
 
-        # CORRECCIÓN 2: Asegurar que se usa el valor correcto para el cálculo total
+        # --- LÓGICA DE MONEDA ESPECÍFICA (CORREGIDA) ---
         u_cost_usd_input = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
         u_cost_usd_input = 0.0 if pd.isna(u_cost_usd_input) else float(u_cost_usd_input)
         
         u_cost_local_input = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
         u_cost_local_input = 0.0 if pd.isna(u_cost_local_input) else float(u_cost_local_input)
         
+        safe_er = er_val if er_val and er_val > 0 else 1.0
+
         if currency_mode == "USD":
-            base_rate_for_calc = u_cost_usd_input
-        else:
-            # Si estamos en modo local, usamos el input local y convertimos a USD para el motor interno
-            safe_er = er_val if er_val and er_val > 0 else 1.0
-            base_rate_for_calc = u_cost_local_input / safe_er
+            # 1. Unit USD: dejar el costo digitado
+            final_unit_usd = u_cost_usd_input
+            # 2. Unit Local: costo digitado (USD) DIVIDIDO por ER
+            final_unit_local = u_cost_usd_input / safe_er
+        else: # Currency Mode == Local
+            # 1. Unit Local: dejar el costo digitado
+            final_unit_local = u_cost_local_input
+            # 2. Unit USD: costo digitado (Local) MULTIPLICADO por ER
+            final_unit_usd = u_cost_local_input * safe_er
             
-        base_line_total = (base_rate_for_calc * qty * duration_line * slc_factor)
+        # Nota: Usamos 'final_unit_usd' como base para el cálculo del total, ya que el sistema base está en USD.
+        # Al seguir tu regla de multiplicación/división, el valor resultante en USD será el usado.
+        
+        base_line_total = (final_unit_usd * qty * duration_line * slc_factor)
         line_total_usd = base_line_total + dist_cost_per_row
         
         total_cost_usd_accum += line_total_usd
@@ -320,6 +306,8 @@ if not edited_df.empty:
             "L40": off_db["L40"],
             "Go to Conga": off_db["Conga"],
             "Duration": duration_line,
+            "Unit Cost USD": final_unit_usd,     # Valor aplicado según lógica
+            "Unit Cost Local": final_unit_local, # Valor aplicado según lógica
             "_LineTotalUSD": line_total_usd
         })
 
