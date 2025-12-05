@@ -7,7 +7,7 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS REFORZADOS ---
+# --- ESTILOS CSS REFORZADOS (Corrección Visual Menús) ---
 st.markdown("""
     <style>
     /* 1. SUBIR SECCIONES */
@@ -18,7 +18,7 @@ st.markdown("""
     
     /* 2. SIDEBAR AJUSTADO */
     section[data-testid="stSidebar"] {
-        width: 300px !important; /* Un poco más ancho para que quepan los textos */
+        width: 300px !important;
         padding-top: 1rem !important;
     }
     section[data-testid="stSidebar"] label {
@@ -30,16 +30,18 @@ st.markdown("""
         height: 1.8rem;
         min-height: 1.8rem;
     }
-    /* Ajuste para que los textos largos en dropdowns del sidebar se vean mejor */
-    div[data-baseweb="select"] > div {
+    
+    /* 3. ARREGLO MENÚS DESPLEGABLES (Dropdowns) */
+    /* Esto asegura que las opciones largas (Offerings) se vean completas en el popover */
+    div[data-baseweb="popover"] div[role="listbox"] div {
         font-size: 11px !important;
-        white-space: normal !important; /* Permitir salto de línea si es necesario */
+        white-space: normal !important; /* Permitir salto de línea */
         line-height: 1.2 !important;
         height: auto !important;
-        min-height: 1.8rem !important;
+        padding: 8px !important;
     }
     
-    /* 3. INPUTS NUMÉRICOS SIN FLECHAS */
+    /* 4. INPUTS NUMÉRICOS SIN FLECHAS */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
@@ -49,7 +51,7 @@ st.markdown("""
         -moz-appearance: textfield;
     }
     
-    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL */
+    /* 5. REDUCIR TAMAÑO LETRA TABLA CENTRAL */
     div[data-testid="stDataEditor"] table {
         font-size: 10px !important;
     }
@@ -57,19 +59,15 @@ st.markdown("""
         font-size: 10px !important;
         padding: 2px !important;
         min-width: 80px !important;
+        vertical-align: middle !important;
     }
     div[data-testid="stDataEditor"] td {
         font-size: 10px !important;
         padding: 2px !important;
-    }
-    /* CORRECCIÓN 2: Ajuste específico para dropdowns dentro de la tabla (data editor) */
-    div[data-testid="stDataEditor"] [data-baseweb="select"] span {
-        white-space: normal !important;
-        line-height: 1.1 !important;
-        font-size: 10px !important;
+        vertical-align: middle !important;
     }
     
-    /* 5. ANCHO COMPLETO */
+    /* 6. ANCHO COMPLETO */
     .stDataFrame, iframe[title="streamlit.data_editor"] {
         width: 100% !important;
     }
@@ -161,7 +159,7 @@ def reset_index(df):
 st.title("🌐 LacostWeb ver19")
 
 with st.sidebar:
-    st.markdown("### Input Data") # CORRECCIÓN 1: Cambio de título
+    st.markdown("### Input Data")
     
     country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
     country_data = DB_COUNTRIES[country]
@@ -197,7 +195,7 @@ with st.sidebar:
 # 4. GESTIÓN DE TABLA (CENTRO)
 # ==========================================
 
-st.subheader("📋 Input Values Section") # CORRECCIÓN 1: Cambio de nombre sección central
+st.subheader("📋 Input Values Section")
 
 # Inicializar Dataframe
 if "df_data" not in st.session_state:
@@ -216,7 +214,7 @@ if "df_data" not in st.session_state:
         "🗑️": [False] 
     }
     st.session_state.df_data = pd.DataFrame(data)
-    st.session_state.df_data = reset_index(st.session_state.df_data) # CORRECCIÓN 2: Inicio en 1
+    st.session_state.df_data = reset_index(st.session_state.df_data) 
 
 # Fix para evitar KeyError
 if "🗑️" not in st.session_state.df_data.columns:
@@ -233,12 +231,14 @@ if st.button("➕ Agregar Fila", use_container_width=True):
         "🗑️": [False]
     })
     st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
-    st.session_state.df_data = reset_index(st.session_state.df_data) # Re-indexar al agregar
+    st.session_state.df_data = reset_index(st.session_state.df_data)
     st.rerun()
 
-# Configuración Columnas
+# --- Configuración Columnas (CORREGIDA) ---
+# Extraer opciones únicas de SLC de la base de datos para el dropdown
+slc_options = sorted(list(set([x["SLC"] for x in DB_SLC])))
+
 col_config = {
-    # CORRECCIÓN 3: Ancho "large" para que se vea el nombre completo del Offering
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="large", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
     "Go to Conga": st.column_config.TextColumn("Go to Conga", width="small", disabled=True),
@@ -247,7 +247,8 @@ col_config = {
     "Start Service Date": st.column_config.DateColumn("Start Date", width="small"),
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
-    "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
+    # Corrección: SLC con ancho 'medium' y opciones dinámicas completas
+    "SLC": st.column_config.SelectboxColumn("SLC", options=slc_options, width="medium"),
     "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False), 
     "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
     "🗑️": st.column_config.CheckboxColumn("Del", width="small") 
@@ -272,7 +273,6 @@ if not edited_df.empty:
     if "🗑️" in edited_df.columns:
         rows_to_delete = edited_df[edited_df["🗑️"] == True].index
         if not rows_to_delete.empty:
-            # Al borrar, usamos reset_index y ajustamos para que empiece en 1 de nuevo
             st.session_state.df_data = edited_df.drop(rows_to_delete)
             st.session_state.df_data = reset_index(st.session_state.df_data)
             st.rerun()
