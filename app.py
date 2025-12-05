@@ -6,18 +6,18 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS REFORZADOS ---
+# --- ESTILOS CSS (Letra Pequeña y Compacto) ---
 st.markdown("""
     <style>
-    /* 1. SUBIR SECCIONES */
+    /* 1. Ajustes Generales */
     .block-container {
         padding-top: 0.5rem !important;
         margin-top: 0rem !important;
     }
     
-    /* 2. SIDEBAR COMPACTO */
+    /* 2. Sidebar Compacto */
     section[data-testid="stSidebar"] {
-        width: 260px !important;
+        width: 250px !important;
         padding-top: 1rem !important;
     }
     section[data-testid="stSidebar"] label {
@@ -30,7 +30,7 @@ st.markdown("""
         min-height: 1.8rem;
     }
     
-    /* 3. INPUTS NUMÉRICOS SIN FLECHAS */
+    /* 3. Inputs Numéricos Limpios */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
@@ -40,34 +40,26 @@ st.markdown("""
         -moz-appearance: textfield;
     }
     
-    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL (Títulos y Datos) */
+    /* 4. Tabla de Datos Ultra Compacta */
     div[data-testid="stDataEditor"] table {
-        font-size: 11px !important;
+        font-size: 10px !important;
     }
     div[data-testid="stDataEditor"] th {
-        font-size: 11px !important;
+        font-size: 10px !important;
         padding: 2px !important;
-        min-width: 80px !important;
     }
     div[data-testid="stDataEditor"] td {
-        font-size: 11px !important;
-        padding-top: 0px !important;
-        padding-bottom: 0px !important;
-        line-height: 1.2 !important;
+        font-size: 10px !important;
+        padding: 2px !important;
     }
     
-    /* 5. ANCHO COMPLETO */
-    .stDataFrame, iframe[title="streamlit.data_editor"] {
-        width: 100% !important;
-    }
-    
-    /* Botones generales */
+    /* 5. Botones */
     div.stButton > button {
         width: 100%;
-        border-radius: 5px;
-        font-weight: bold;
+        border-radius: 4px;
         font-size: 11px !important;
-        padding: 0.2rem;
+        padding: 4px;
+        font-weight: bold;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -114,7 +106,6 @@ DB_SLC = [
 # ==========================================
 
 def get_slc_factor(country, slc_code):
-    """Calcula factor SLC con protección contra nulos."""
     if not slc_code or pd.isna(slc_code) or str(slc_code).strip() == "":
         return 1.0
     scope_key = "Brasil" if country == "Brazil" else "no brasil"
@@ -127,7 +118,6 @@ def get_slc_factor(country, slc_code):
     return 1.0
 
 def calc_months(start, end):
-    """Calcula duración en meses."""
     if not start or not end: return 0.0
     try:
         d_start = pd.to_datetime(start).date() if isinstance(start, (pd.Timestamp, str)) else start
@@ -138,7 +128,7 @@ def calc_months(start, end):
     except: return 0.0
 
 # ==========================================
-# 3. INTERFAZ: SIDEBAR
+# 3. INTERFAZ: INITIAL INFORMATION
 # ==========================================
 
 st.title("🌐 LacostWeb ver19")
@@ -150,10 +140,11 @@ with st.sidebar:
     country_data = DB_COUNTRIES[country]
     er_val = country_data['ER'] if country_data['ER'] else 1.0
     
+    # Selector de Moneda
     currency_mode = st.radio("Currency Mode", ["USD", "Local"], horizontal=True)
     st.caption(f"Tasa {country_data['Curr']}: {er_val:,.2f}")
 
-    # QA Risk
+    # Risk
     risk_col1, risk_col2 = st.columns([0.7, 0.3])
     qa_risk = risk_col1.selectbox("QA Risk", list(DB_RISK.keys()))
     risk_pct = DB_RISK[qa_risk]
@@ -169,18 +160,19 @@ with st.sidebar:
     contract_period = calc_months(start_date, end_date)
     st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
     
-    # Input Póliza sin botones (step=0.0)
+    # Input Póliza Limpio
     dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0, format="%.2f")
     
     st.markdown("---")
     target_gp = st.slider("Target GP %", 0.0, 1.0, 0.40, 0.01)
 
 # ==========================================
-# 4. GESTIÓN DE TABLA
+# 4. GESTIÓN DE TABLA (CENTRO)
 # ==========================================
 
 st.subheader("📋 TABLA DE DATOS (CENTRO)")
 
+# Inicializar Dataframe
 if "df_data" not in st.session_state:
     data = {
         "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
@@ -193,12 +185,12 @@ if "df_data" not in st.session_state:
         "Duration": [12.0],
         "SLC": ["9X5NBD"],
         "Unit Cost USD": [100.0],
-        "Unit Cost Local": [0.0], 
+        "Unit Cost Local": [0.0],
         "🗑️": [False] 
     }
     st.session_state.df_data = pd.DataFrame(data)
 
-# Auto-corrección de columnas
+# Fix para evitar KeyError en sesiones viejas
 if "🗑️" not in st.session_state.df_data.columns:
     st.session_state.df_data["🗑️"] = False
 
@@ -215,7 +207,7 @@ if st.button("➕ Agregar Fila", use_container_width=True):
     st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
     st.rerun()
 
-# Configuración Columnas - AMBOS COSTOS EDITABLES
+# Configuración Columnas (Campos Independientes)
 col_config = {
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="medium", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
@@ -226,12 +218,12 @@ col_config = {
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
     "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
     "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
-    "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False), # Editable
-    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False), # Editable
-    "🗑️": st.column_config.CheckboxColumn("Del", width="small", help="Borrar") 
+    "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False), 
+    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
+    "🗑️": st.column_config.CheckboxColumn("Del", width="small") 
 }
 
-# Editor
+# EDITOR (Sin callbacks, puro input)
 edited_df = st.data_editor(
     st.session_state.df_data,
     num_rows="fixed", 
@@ -241,56 +233,59 @@ edited_df = st.data_editor(
 )
 
 # ==========================================
-# 5. ENGINE DE CÁLCULO (INDEPENDIENTE)
+# 5. ENGINE DE CÁLCULO (Lógica V19)
 # ==========================================
 
 if not edited_df.empty:
     
-    # 1. BORRADO
+    # 1. BORRADO DE FILAS
     if "🗑️" in edited_df.columns:
         rows_to_delete = edited_df[edited_df["🗑️"] == True].index
         if not rows_to_delete.empty:
             st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
             st.rerun()
 
-    # 3. CÁLCULO DE TOTALES
+    # 2. CÁLCULO DE TOTALES
     rows_count = len(edited_df)
     dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
+    
     calculated_rows = []
     total_cost_usd_accum = 0.0
     
+    safe_er = er_val if er_val and er_val > 0 else 1.0
+
     for idx, row in edited_df.iterrows():
+        # -- Info Base --
         off_name = str(row.get("Offering", ""))
         off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
+        
         s_date = row.get("Start Service Date")
         e_date = row.get("End Service Date")
         duration_line = calc_months(s_date, e_date)
+        
         slc_val = row.get("SLC", "")
         slc_factor = get_slc_factor(country, slc_val)
+        
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
 
-        # Recuperar valores RAW (sin tocar)
-        u_cost_usd_val = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
-        u_cost_usd_val = 0.0 if pd.isna(u_cost_usd_val) else float(u_cost_usd_val)
+        # -- EXTRACCIÓN Y LÓGICA DE MONEDA --
+        u_cost_usd_raw = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
+        u_cost_usd_raw = 0.0 if pd.isna(u_cost_usd_raw) else float(u_cost_usd_raw)
         
-        u_cost_local_val = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
-        u_cost_local_val = 0.0 if pd.isna(u_cost_local_val) else float(u_cost_local_val)
+        u_cost_local_raw = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
+        u_cost_local_raw = 0.0 if pd.isna(u_cost_local_raw) else float(u_cost_local_raw)
         
-        safe_er = er_val if er_val and er_val > 0 else 1.0
-
-        # LÓGICA DE SELECCIÓN PARA TOTALES (CORREGIDA)
+        # DECISIÓN CRÍTICA: ¿Qué valor uso para el total?
         if currency_mode == "USD":
-            # Si estoy en modo USD:
-            # - Tomo el valor digitado en USD.
-            # - Si quiero mostrar el valor local, seria USD * ER (pero NO modifico el input).
-            base_rate_usd = u_cost_usd_val
+            # Si el selector dice USD -> Tomo la columna USD.
+            base_rate_usd = u_cost_usd_raw
         else:
-            # Si estoy en modo Local:
-            # - Tomo el valor digitado en Local.
-            # - Lo convierto a USD para el calculo total (Local / ER).
-            base_rate_usd = u_cost_local_val / safe_er
+            # Si el selector dice Local -> Tomo la columna Local y la convierto a USD para el total.
+            # Local / ER = USD
+            base_rate_usd = u_cost_local_raw / safe_er
             
+        # -- TOTAL LÍNEA --
         base_line_total = (base_rate_usd * qty * duration_line * slc_factor)
         line_total_usd = base_line_total + dist_cost_per_row
         
@@ -318,29 +313,32 @@ if not edited_df.empty:
     taxes = sell_price * country_data['Tax']
     final_price = sell_price + taxes
     
-    # Visualización
+    # VISUALIZACIÓN
     factor = er_val if currency_mode == "Local" else 1.0
     sym = country_data['Curr'] if currency_mode == "Local" else "USD"
     
     k1, k2, k3, k4 = st.columns(4)
-    # Mensaje claro de qué columna se está usando
-    source_msg = "(Usando Col: USD)" if currency_mode == "USD" else "(Usando Col: Local)"
     
-    k1.metric(f"TOTAL COST {source_msg}", f"{total_cost_usd_accum * factor:,.2f} {sym}")
+    # Indicador de fuente
+    source_label = "USD" if currency_mode == "USD" else "Local"
+    
+    k1.metric(f"TOTAL COST (Base: {source_label})", f"{total_cost_usd_accum * factor:,.2f} {sym}")
     k2.metric(f"CONTINGENCY ({risk_pct*100}%)", f"{contingency_val * factor:,.2f} {sym}")
     k3.metric(f"SELL PRICE (Revenue)", f"{sell_price * factor:,.2f} {sym}")
     k4.metric("FINAL PRICE (+Tax)", f"{final_price * factor:,.2f} {sym}")
     
+    # EXPORTACIÓN
     if st.button("💾 Descargar Excel Calculado"):
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df_export = pd.DataFrame(calculated_rows)
-            cols_to_drop = ["_LineTotalUSD", "🗑️"]
-            df_export = df_export.drop(columns=[c for c in cols_to_drop if c in df_export.columns])
+            # Limpiar columnas internas
+            cols_drop = ["_LineTotalUSD", "🗑️"]
+            df_export = df_export.drop(columns=[c for c in cols_drop if c in df_export.columns])
             df_export.to_excel(writer, sheet_name='Input Processed', index=False)
             
             summary_data = {
-                "KPI": ["Customer", "Risk", "Total Cost USD", "Sell Price USD", "Final Price USD", "GP Target", "Calculation Mode"],
+                "KPI": ["Customer", "Risk", "Total Cost USD", "Sell Price USD", "Final Price USD", "GP Target", "Active Currency Mode"],
                 "Value": [customer_name, risk_pct, total_cost_usd_accum, sell_price, final_price, target_gp, currency_mode]
             }
             pd.DataFrame(summary_data).to_excel(writer, sheet_name='Pricing Summary', index=False)
