@@ -42,14 +42,13 @@ st.markdown("""
         -moz-appearance: textfield;
     }
     
-    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL */
-    div[data-testid="stDataEditor"] table {
-        font-size: 11px !important;
+    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL (Agresivo) */
+    div[data-testid="stDataEditor"] * {
+        font-size: 12px !important;
     }
     div[data-testid="stDataEditor"] td {
-        font-size: 11px !important;
-        padding-top: 4px !important;
-        padding-bottom: 4px !important;
+        padding-top: 2px !important;
+        padding-bottom: 2px !important;
     }
     
     /* 5. ANCHO COMPLETO */
@@ -192,6 +191,11 @@ if "df_data" not in st.session_state:
     }
     st.session_state.df_data = pd.DataFrame(data)
 
+# >>> CORRECCIÓN CLAVE: Migración de datos para evitar KeyError <<<
+# Si por alguna razón la columna de borrado no existe (sesión vieja), la creamos.
+if "🗑️" not in st.session_state.df_data.columns:
+    st.session_state.df_data["🗑️"] = False
+
 # Botón solo para agregar (Borrar ahora es por línea)
 if st.button("➕ Agregar Fila", use_container_width=True):
     new_row = pd.DataFrame({
@@ -238,24 +242,23 @@ edited_df = st.data_editor(
 if not edited_df.empty:
     
     # 1. LÓGICA DE BORRADO DE FILAS
-    rows_to_delete = edited_df[edited_df["🗑️"] == True].index
-    if not rows_to_delete.empty:
-        st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
-        st.rerun()
+    # Verificamos primero si la columna existe en el dataframe editado para evitar errores
+    if "🗑️" in edited_df.columns:
+        rows_to_delete = edited_df[edited_df["🗑️"] == True].index
+        if not rows_to_delete.empty:
+            st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
+            st.rerun()
 
-    # 2. SINCRONIZACIÓN DE MONEDAS (Corrección 2)
-    # Detectamos qué celda cambió para actualizar la otra moneda automáticamente
-    # Esto asegura que el total siempre tenga datos frescos
+    # 2. SINCRONIZACIÓN DE MONEDAS
     editor_state = st.session_state.get("main_editor", {})
     edited_cells = editor_state.get("edited_rows", {})
     
     needs_rerun = False
     
-    # Actualizar Session State basado en ediciones
     for idx, changes in edited_cells.items():
         if idx not in st.session_state.df_data.index: continue
         
-        # Si usuario editó Local -> Calculamos USD
+        # Sincronización Bidireccional
         if "Unit Cost Local" in changes:
             new_local = float(changes["Unit Cost Local"])
             new_usd = new_local / er_val if er_val else 0.0
@@ -263,7 +266,6 @@ if not edited_df.empty:
             st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
             needs_rerun = True
             
-        # Si usuario editó USD -> Calculamos Local
         elif "Unit Cost USD" in changes:
             new_usd = float(changes["Unit Cost USD"])
             new_local = new_usd * er_val
@@ -274,14 +276,13 @@ if not edited_df.empty:
     if needs_rerun:
         st.rerun()
 
-    # 3. CÁLCULO DE TOTALES (Usando siempre el valor sincronizado)
+    # 3. CÁLCULO DE TOTALES
     rows_count = len(edited_df)
     dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
     calculated_rows = []
     total_cost_usd_accum = 0.0
     
     for idx, row in edited_df.iterrows():
-        # Info Base
         off_name = str(row.get("Offering", ""))
         off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
         
@@ -295,13 +296,21 @@ if not edited_df.empty:
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
 
-        # Para el cálculo total, confiamos en el valor USD que ya está sincronizado
-        # (ya sea porque se editó directamente o se calculó desde el local)
-        u_cost_usd_calc = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
-        u_cost_usd_calc = 0.0 if pd.isna(u_cost_usd_calc) else float(u_cost_usd_calc)
+        # CORRECCIÓN 2: Asegurar que se usa el valor correcto para el cálculo total
+        u_cost_usd_input = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
+        u_cost_usd_input = 0.0 if pd.isna(u_cost_usd_input) else float(u_cost_usd_input)
         
-        # Totales
-        base_line_total = (u_cost_usd_calc * qty * duration_line * slc_factor)
+        u_cost_local_input = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
+        u_cost_local_input = 0.0 if pd.isna(u_cost_local_input) else float(u_cost_local_input)
+        
+        if currency_mode == "USD":
+            base_rate_for_calc = u_cost_usd_input
+        else:
+            # Si estamos en modo local, usamos el input local y convertimos a USD para el motor interno
+            safe_er = er_val if er_val and er_val > 0 else 1.0
+            base_rate_for_calc = u_cost_local_input / safe_er
+            
+        base_line_total = (base_rate_for_calc * qty * duration_line * slc_factor)
         line_total_usd = base_line_total + dist_cost_per_row
         
         total_cost_usd_accum += line_total_usd
@@ -344,7 +353,6 @@ if not edited_df.empty:
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
             df_export = pd.DataFrame(calculated_rows)
-            # Limpiar columnas auxiliares
             cols_to_drop = ["_LineTotalUSD", "🗑️"]
             df_export = df_export.drop(columns=[c for c in cols_to_drop if c in df_export.columns])
             df_export.to_excel(writer, sheet_name='Input Processed', index=False)
