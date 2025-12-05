@@ -6,21 +6,21 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS (Ajustes Visuales: Compacto y Sin Flechas) ---
+# --- ESTILOS CSS REFORZADOS ---
 st.markdown("""
     <style>
-    /* 1. Reducir espacio superior */
+    /* 1. SUBIR SECCIONES (Reducir padding superior) */
     .block-container {
         padding-top: 1rem !important;
-        padding-bottom: 1rem !important;
-        margin-top: 0 !important;
+        margin-top: 0rem !important;
     }
     
-    /* 2. Sidebar Compacto */
+    /* 2. SIDEBAR COMPACTO */
     section[data-testid="stSidebar"] {
-        font-size: 11px !important;
         width: 260px !important;
-        padding-top: 0rem !important;
+    }
+    section[data-testid="stSidebar"] .block-container {
+        padding-top: 2rem !important;
     }
     section[data-testid="stSidebar"] label {
         font-size: 11px !important;
@@ -28,26 +28,28 @@ st.markdown("""
     }
     section[data-testid="stSidebar"] input, section[data-testid="stSidebar"] select {
         font-size: 11px !important;
-        height: 1.8rem;
-        min-height: 1.8rem;
+        height: 2rem;
+        min-height: 2rem;
     }
     
-    /* 3. Quitar botones +/- de inputs numéricos */
+    /* 3. QUITAR BOTONES +/- (Solución Cross-Browser) */
+    /* Chrome, Safari, Edge, Opera */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
         margin: 0; 
     }
-    [data-testid="stNumberInputStepUp"], [data-testid="stNumberInputStepDown"] {
-        display: none !important;
+    /* Firefox */
+    input[type=number] {
+        -moz-appearance: textfield;
     }
     
-    /* 4. Tabla Ancho Completo */
+    /* 4. TABLA ANCHO COMPLETO */
     .stDataFrame, iframe[title="streamlit.data_editor"] {
         width: 100% !important;
     }
     
-    /* 5. Botones de acción */
+    /* 5. BOTONES DE ACCIÓN */
     div.stButton > button {
         width: 100%;
         border-radius: 5px;
@@ -98,6 +100,7 @@ DB_SLC = [
 # ==========================================
 
 def get_slc_factor(country, slc_code):
+    """Calcula factor SLC con protección contra nulos."""
     if not slc_code or pd.isna(slc_code) or str(slc_code).strip() == "":
         return 1.0
     scope_key = "Brasil" if country == "Brazil" else "no brasil"
@@ -110,6 +113,7 @@ def get_slc_factor(country, slc_code):
     return 1.0
 
 def calc_months(start, end):
+    """Calcula duración en meses."""
     if not start or not end: return 0.0
     try:
         d_start = pd.to_datetime(start).date() if isinstance(start, (pd.Timestamp, str)) else start
@@ -126,16 +130,17 @@ def calc_months(start, end):
 st.title("🌐 LacostWeb ver19")
 
 with st.sidebar:
-    st.markdown("### Initial Information")
+    st.markdown("### Initial Information")  # Corrección #2: Título cambiado
     
     country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
     country_data = DB_COUNTRIES[country]
     er_val = country_data['ER'] if country_data['ER'] else 1.0
     
-    # Selector de Moneda: Define qué columna se usa para el cálculo TOTAL
+    # Currency Switch
     currency_mode = st.radio("Currency Mode", ["USD", "Local"], horizontal=True)
     st.caption(f"Tasa {country_data['Curr']}: {er_val:,.2f}")
 
+    # QA Risk
     risk_col1, risk_col2 = st.columns([0.7, 0.3])
     qa_risk = risk_col1.selectbox("QA Risk", list(DB_RISK.keys()))
     risk_pct = DB_RISK[qa_risk]
@@ -151,14 +156,15 @@ with st.sidebar:
     contract_period = calc_months(start_date, end_date)
     st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
     
-    # Input Póliza (sin botones +/-)
-    dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0)
+    # Corrección #1: Input Póliza sin botones (+/-)
+    # step=0.0 le dice a Streamlit "no uses incrementos", y format="%.2f" lo formatea bonito.
+    dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0, format="%.2f")
     
     st.markdown("---")
     target_gp = st.slider("Target GP %", 0.0, 1.0, 0.40, 0.01)
 
 # ==========================================
-# 4. GESTIÓN DE TABLA
+# 4. GESTIÓN DE TABLA (Botones Visibles)
 # ==========================================
 
 st.subheader("📋 TABLA DE DATOS (CENTRO)")
@@ -250,7 +256,6 @@ if not edited_df.empty:
         except: qty = 1.0
 
         # 2. EXTRACCIÓN DE COSTOS (Robustez Extrema)
-        # Usamos pd.to_numeric para convertir cualquier string o nulo a número válido
         u_cost_usd_input = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
         u_cost_usd_input = 0.0 if pd.isna(u_cost_usd_input) else float(u_cost_usd_input)
         
@@ -263,7 +268,6 @@ if not edited_df.empty:
             base_rate_for_calc = u_cost_usd_input
         else:
             # Modo Local: Usamos el campo Local y dividimos por tasa
-            # Protección contra tasa 0 o nula
             safe_er = er_val if er_val and er_val > 0 else 1.0
             base_rate_for_calc = u_cost_local_input / safe_er
             
@@ -300,7 +304,7 @@ if not edited_df.empty:
     sym = country_data['Curr'] if currency_mode == "Local" else "USD"
     
     k1, k2, k3, k4 = st.columns(4)
-    # Indicamos qué moneda se usó como base para evitar confusión
+    # Indicamos qué moneda se usó como base
     source_msg = "(Base: USD)" if currency_mode == "USD" else "(Base: Local)"
     
     k1.metric(f"TOTAL COST {source_msg}", f"{total_cost_usd_accum * factor:,.2f} {sym}")
