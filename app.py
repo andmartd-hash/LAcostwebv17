@@ -6,10 +6,10 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS REFORZADOS ---
+# --- ESTILOS CSS (Ajustes Visuales: Compacto y Sin Flechas) ---
 st.markdown("""
     <style>
-    /* 1. SUBIR SECCIONES */
+    /* 1. SUBIR SECCIONES (Reducir padding superior) */
     .block-container {
         padding-top: 1rem !important;
         margin-top: 0rem !important;
@@ -18,8 +18,6 @@ st.markdown("""
     /* 2. SIDEBAR COMPACTO */
     section[data-testid="stSidebar"] {
         width: 260px !important;
-    }
-    section[data-testid="stSidebar"] .block-container {
         padding-top: 2rem !important;
     }
     section[data-testid="stSidebar"] label {
@@ -28,11 +26,11 @@ st.markdown("""
     }
     section[data-testid="stSidebar"] input, section[data-testid="stSidebar"] select {
         font-size: 11px !important;
-        height: 2rem;
-        min-height: 2rem;
+        height: 1.8rem;
+        min-height: 1.8rem;
     }
     
-    /* 3. INPUTS NUMÉRICOS SIN FLECHAS */
+    /* 3. QUITAR BOTONES +/- (Solución Cross-Browser para Distributed Cost) */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
@@ -42,16 +40,17 @@ st.markdown("""
         -moz-appearance: textfield;
     }
     
-    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL */
+    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL (Títulos y Datos) */
     div[data-testid="stDataEditor"] table {
-        font-size: 11px !important;
+        font-size: 10px !important;
     }
     div[data-testid="stDataEditor"] th {
-        font-size: 11px !important;
+        font-size: 10px !important;
         padding: 4px !important;
+        min-width: 90px !important; /* Forzar ancho mínimo para leer títulos */
     }
     div[data-testid="stDataEditor"] td {
-        font-size: 11px !important;
+        font-size: 10px !important;
         padding-top: 2px !important;
         padding-bottom: 2px !important;
     }
@@ -66,6 +65,7 @@ st.markdown("""
         width: 100%;
         border-radius: 5px;
         font-weight: bold;
+        font-size: 11px !important;
         padding: 0.2rem;
     }
     </style>
@@ -113,6 +113,7 @@ DB_SLC = [
 # ==========================================
 
 def get_slc_factor(country, slc_code):
+    """Calcula factor SLC con protección contra nulos."""
     if not slc_code or pd.isna(slc_code) or str(slc_code).strip() == "":
         return 1.0
     scope_key = "Brasil" if country == "Brazil" else "no brasil"
@@ -125,6 +126,7 @@ def get_slc_factor(country, slc_code):
     return 1.0
 
 def calc_months(start, end):
+    """Calcula duración en meses."""
     if not start or not end: return 0.0
     try:
         d_start = pd.to_datetime(start).date() if isinstance(start, (pd.Timestamp, str)) else start
@@ -147,11 +149,10 @@ with st.sidebar:
     country_data = DB_COUNTRIES[country]
     er_val = country_data['ER'] if country_data['ER'] else 1.0
     
-    # Currency Mode
     currency_mode = st.radio("Currency Mode", ["USD", "Local"], horizontal=True)
     st.caption(f"Tasa {country_data['Curr']}: {er_val:,.2f}")
 
-    # Risk
+    # QA Risk
     risk_col1, risk_col2 = st.columns([0.7, 0.3])
     qa_risk = risk_col1.selectbox("QA Risk", list(DB_RISK.keys()))
     risk_pct = DB_RISK[qa_risk]
@@ -196,7 +197,7 @@ if "df_data" not in st.session_state:
     }
     st.session_state.df_data = pd.DataFrame(data)
 
-# Auto-corrección de columnas (Evita KeyError si cambia estructura)
+# Auto-corrección de columnas
 if "🗑️" not in st.session_state.df_data.columns:
     st.session_state.df_data["🗑️"] = False
 
@@ -226,7 +227,7 @@ col_config = {
     "SLC": st.column_config.SelectboxColumn("SLC", options=["9X5NBD", "24X7SD", "24X7 4h Resp", "24X7 6h Fix"], width="small"),
     "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False),
     "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
-    "🗑️": st.column_config.CheckboxColumn("Del", width="small", help="Marcar para borrar") 
+    "🗑️": st.column_config.CheckboxColumn("Del", width="small", help="Borrar") 
 }
 
 # Editor
@@ -251,28 +252,29 @@ if not edited_df.empty:
             st.session_state.df_data = edited_df.drop(rows_to_delete).reset_index(drop=True)
             st.rerun()
 
-    # 2. SINCRONIZACIÓN DE MONEDAS
+    # 2. SINCRONIZACIÓN DE MONEDAS (Lógica Inversa Aplicada)
     editor_state = st.session_state.get("main_editor", {})
     edited_cells = editor_state.get("edited_rows", {})
     
     needs_rerun = False
+    safe_er = er_val if er_val and er_val > 0 else 1.0
     
     for idx, changes in edited_cells.items():
         if idx not in st.session_state.df_data.index: continue
         
-        # Sincronización Bidireccional
+        # Sincronización Interactiva
         if "Unit Cost Local" in changes:
-            # Usuario editó LOCAL -> Calculamos USD (Local / ER)
+            # Edito Local -> USD = Local * ER (Tu regla para 'si no es USD')
             new_local = float(changes["Unit Cost Local"])
-            new_usd = new_local / er_val if er_val else 0.0
+            new_usd = new_local * safe_er 
             st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
             st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
             needs_rerun = True
             
         elif "Unit Cost USD" in changes:
-            # Usuario editó USD -> Calculamos Local (USD * ER)
+            # Edito USD -> Local = USD / ER (Tu regla para 'si es USD')
             new_usd = float(changes["Unit Cost USD"])
-            new_local = new_usd * er_val
+            new_local = new_usd / safe_er
             st.session_state.df_data.at[idx, "Unit Cost USD"] = new_usd
             st.session_state.df_data.at[idx, "Unit Cost Local"] = new_local
             needs_rerun = True
@@ -287,7 +289,6 @@ if not edited_df.empty:
     total_cost_usd_accum = 0.0
     
     for idx, row in edited_df.iterrows():
-        # Info
         off_name = str(row.get("Offering", ""))
         off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
         s_date = row.get("Start Service Date")
@@ -298,23 +299,27 @@ if not edited_df.empty:
         try: qty = float(row.get("QTY", 1))
         except: qty = 1.0
 
-        # Lógica de Selección de Costo Base
-        # Usamos los valores ya sincronizados en el DataFrame/Editor
+        # Recuperar valores
         u_cost_usd_val = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
         u_cost_usd_val = 0.0 if pd.isna(u_cost_usd_val) else float(u_cost_usd_val)
         
         u_cost_local_val = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
         u_cost_local_val = 0.0 if pd.isna(u_cost_local_val) else float(u_cost_local_val)
         
-        safe_er = er_val if er_val and er_val > 0 else 1.0
-
-        # La "base del cálculo" depende del modo seleccionado
+        # LÓGICA DE CÁLCULO INVERSA (TU REQUERIMIENTO)
         if currency_mode == "USD":
-            # Si estoy en modo USD, confío en la columna USD
+            # Si es USD: Base es el digitado (USD).
+            # Local visual es USD / ER.
             base_rate_usd = u_cost_usd_val
+            final_visual_local = u_cost_usd_val / safe_er
+            final_visual_usd = u_cost_usd_val
         else:
-            # Si estoy en modo Local, confío en la columna Local y la convierto a USD para el motor interno
-            base_rate_usd = u_cost_local_val / safe_er
+            # Si es Local: Base es el digitado (Local).
+            # USD visual es Local * ER.
+            # Y para el cálculo total usamos este USD "inflado" por la multiplicación
+            base_rate_usd = u_cost_local_val * safe_er 
+            final_visual_usd = base_rate_usd
+            final_visual_local = u_cost_local_val
             
         base_line_total = (base_rate_usd * qty * duration_line * slc_factor)
         line_total_usd = base_line_total + dist_cost_per_row
@@ -326,8 +331,8 @@ if not edited_df.empty:
             "L40": off_db["L40"],
             "Go to Conga": off_db["Conga"],
             "Duration": duration_line,
-            "Unit Cost USD": u_cost_usd_val,
-            "Unit Cost Local": u_cost_local_val,
+            "Unit Cost USD": final_visual_usd,
+            "Unit Cost Local": final_visual_local,
             "_LineTotalUSD": line_total_usd
         })
 
