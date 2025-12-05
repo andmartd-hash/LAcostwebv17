@@ -7,49 +7,42 @@ import io
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
 
-# --- ESTILOS CSS REFORZADOS (Mejoras Visuales y Fuentes Más Pequeñas) ---
+# --- ESTILOS CSS REFORZADOS (Mejoras Visuales) ---
 st.markdown("""
     <style>
     /* 1. SUBIR SECCIONES */
     .block-container {
-        padding-top: 0rem !important;
+        padding-top: 1rem !important;
         margin-top: 0rem !important;
     }
     
-    /* 2. SIDEBAR AJUSTADO Y LETRA MÁS PEQUEÑA */
+    /* 2. SIDEBAR AJUSTADO */
     section[data-testid="stSidebar"] {
         width: 300px !important;
-        padding-top: 0.5rem !important;
-    }
-    section[data-testid="stSidebar"] .block-container {
         padding-top: 1rem !important;
     }
     section[data-testid="stSidebar"] label {
-        font-size: 10px !important; /* Letra más pequeña en labels sidebar */
+        font-size: 11px !important;
         font-weight: bold;
     }
     section[data-testid="stSidebar"] input, section[data-testid="stSidebar"] select {
-        font-size: 10px !important; /* Letra más pequeña en inputs sidebar */
-        height: 1.6rem;
-        min-height: 1.6rem;
-    }
-    /* Ajuste para que los textos largos en dropdowns del sidebar se vean mejor */
-    div[data-baseweb="select"] > div {
-        font-size: 10px !important;
-        white-space: normal !important;
-        line-height: 1.1 !important;
-        height: auto !important;
-        min-height: 1.6rem !important;
-    }
-    div[data-baseweb="popover"] div[role="listbox"] div {
-        font-size: 10px !important;
-        white-space: normal !important;
-        line-height: 1.1 !important;
-        height: auto !important;
-        padding: 4px !important;
+        font-size: 11px !important;
+        height: 1.8rem;
+        min-height: 1.8rem;
     }
     
-    /* 3. INPUTS NUMÉRICOS SIN FLECHAS */
+    /* 3. ARREGLO MENÚS DESPLEGABLES (Dropdowns y Popovers) */
+    /* Esto asegura que los textos largos de Offerings se vean completos al desplegar */
+    div[data-baseweb="popover"] div[role="listbox"] div {
+        font-size: 11px !important;
+        white-space: normal !important; /* Ajuste de línea */
+        line-height: 1.3 !important;
+        height: auto !important;
+        padding: 6px !important;
+        min-width: 300px !important; /* Ancho mínimo para leer bien */
+    }
+    
+    /* 4. INPUTS NUMÉRICOS SIN FLECHAS */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
@@ -59,31 +52,26 @@ st.markdown("""
         -moz-appearance: textfield;
     }
     
-    /* 4. REDUCIR TAMAÑO LETRA TABLA CENTRAL (Aún más pequeña) */
+    /* 5. TABLA CENTRAL MEJORADA */
     div[data-testid="stDataEditor"] table {
-        font-size: 9px !important; /* Letra reducida a 9px */
+        font-size: 11px !important; /* Un poco más legible que 9px */
     }
     div[data-testid="stDataEditor"] th {
-        font-size: 9px !important; /* Títulos reducidos */
-        padding: 2px !important;
-        min-width: 70px !important;
+        font-size: 11px !important;
+        background-color: #f0f2f6; /* Color de fondo sutil para cabeceras */
+        color: #31333F;
+        padding: 4px !important;
+        min-width: 80px !important;
         vertical-align: middle !important;
-        line-height: 1.1 !important;
     }
     div[data-testid="stDataEditor"] td {
-        font-size: 9px !important; /* Datos reducidos */
-        padding: 1px !important;
+        font-size: 11px !important;
+        padding: 4px !important; /* Más aire para que no se vea amontonado */
         vertical-align: middle !important;
-        line-height: 1.1 !important;
-    }
-    /* Ajuste específico para dropdowns dentro de la tabla */
-    div[data-testid="stDataEditor"] [data-baseweb="select"] span {
-        white-space: normal !important;
-        line-height: 1.0 !important;
-        font-size: 9px !important;
+        line-height: 1.2 !important;
     }
     
-    /* 5. ANCHO COMPLETO */
+    /* 6. ANCHO COMPLETO */
     .stDataFrame, iframe[title="streamlit.data_editor"] {
         width: 100% !important;
     }
@@ -93,7 +81,7 @@ st.markdown("""
         width: 100%;
         border-radius: 4px;
         font-weight: bold;
-        font-size: 10px !important; /* Botones más pequeños */
+        font-size: 11px !important;
         padding: 0.1rem;
         height: 1.8rem;
     }
@@ -173,10 +161,8 @@ def reset_index(df):
 # 3. INTERFAZ: SIDEBAR
 # ==========================================
 
-st.title("🌐 LacostWeb ver19")
-
 with st.sidebar:
-    st.markdown("### Input Data")
+    st.markdown("### General info") # CORRECCIÓN 1: Nombre cambiado
     
     country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
     country_data = DB_COUNTRIES[country]
@@ -209,8 +195,18 @@ with st.sidebar:
     target_gp = st.slider("Target GP %", 0.0, 1.0, 0.40, 0.01)
 
 # ==========================================
-# 4. GESTIÓN DE TABLA (CENTRO)
+# 4. ENCABEZADO Y TABLA (DERECHA)
 # ==========================================
+
+# CORRECCIÓN 2: Título a la derecha y con estilo
+col_header_space, col_header_title = st.columns([1, 3])
+with col_header_title:
+    st.markdown("""
+        <h1 style='text-align: right; color: #2E4053; margin-bottom: 0px; padding-bottom: 0px;'>
+            🌐 LacostWeb ver19
+        </h1>
+        <hr style='margin-top: 5px; margin-bottom: 20px; border-color: #2E4053;'>
+    """, unsafe_allow_html=True)
 
 st.subheader("📋 Input Values Section")
 
@@ -252,14 +248,15 @@ if st.button("➕ Agregar Fila", use_container_width=True):
     st.rerun()
 
 # --- Configuración Columnas (CORREGIDA) ---
-# Extraer opciones únicas de SLC de la base de datos para el dropdown
 slc_options = sorted(list(set([x["SLC"] for x in DB_SLC])))
 
+# CORRECCIÓN 3: Ajustes visuales en columnas
 col_config = {
+    # Large para Offering, Medium para SLC (para que se vean los textos)
     "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="large", required=True),
     "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
     "Go to Conga": st.column_config.TextColumn("Go to Conga", width="small", disabled=True),
-    "Description": st.column_config.TextColumn("Description", width="small"),
+    "Description": st.column_config.TextColumn("Description", width="medium"), # Un poco más espacio para descripciones
     "QTY": st.column_config.NumberColumn("QTY", width="small", min_value=1),
     "Start Service Date": st.column_config.DateColumn("Start Date", width="small"),
     "End Service Date": st.column_config.DateColumn("End Date", width="small"),
