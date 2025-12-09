@@ -1,103 +1,60 @@
 import streamlit as st
 import pandas as pd
-import numpy as np  # Necesario para ajustar el índice
+import numpy as np
 from datetime import date
 import io
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="LacostWeb ver19", layout="wide", page_icon="🌐")
+# ==========================================
+# 1. CONFIGURACIÓN E INTERFAZ GENERAL
+# ==========================================
+st.set_page_config(page_title="LacostWeb V20", layout="wide", page_icon="🚀")
 
-# --- ESTILOS CSS REFORZADOS ---
+# CSS Profesional y Compacto
 st.markdown("""
     <style>
-    /* 1. SUBIR SECCIONES */
-    .block-container {
-        padding-top: 0.5rem !important;
-        margin-top: 0rem !important;
+    /* Layout General */
+    .block-container { padding-top: 1rem; padding-bottom: 5rem; }
+    
+    /* Sidebar */
+    section[data-testid="stSidebar"] { width: 300px !important; }
+    section[data-testid="stSidebar"] .block-container { padding-top: 2rem; }
+    
+    /* Fuentes y Textos */
+    .small-font { font-size: 11px !important; }
+    label { font-size: 11px !important; font-weight: bold; }
+    
+    /* Tablas Compactas */
+    div[data-testid="stDataEditor"] table { font-size: 10px; }
+    div[data-testid="stDataEditor"] th { font-size: 10px; padding: 4px; background-color: #f8f9fa; }
+    div[data-testid="stDataEditor"] td { font-size: 10px; padding: 4px; }
+    
+    /* Inputs Numéricos Limpios */
+    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+    
+    /* Ajuste Menús Desplegables Largos (Offerings) */
+    div[data-baseweb="select"] > div { white-space: normal !important; height: auto !important; min-height: 1.8rem; }
+    div[data-baseweb="popover"] div[role="listbox"] div { 
+        font-size: 11px !important; white-space: normal !important; line-height: 1.2 !important; min-width: 350px !important; 
     }
     
-    /* 2. SIDEBAR AJUSTADO */
-    section[data-testid="stSidebar"] {
-        width: 300px !important;
-        padding-top: 1rem !important;
+    /* Títulos de Sección */
+    .section-header { 
+        font-size: 16px; font-weight: bold; color: #1565C0; border-bottom: 2px solid #1565C0; margin-top: 20px; margin-bottom: 10px; padding-bottom: 5px; 
     }
-    section[data-testid="stSidebar"] label {
-        font-size: 11px !important;
-        font-weight: bold;
+    .kpi-card {
+        background-color: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 5px; padding: 10px; text-align: center;
     }
-    section[data-testid="stSidebar"] input, section[data-testid="stSidebar"] select {
-        font-size: 11px !important;
-        height: 1.8rem;
-        min-height: 1.8rem;
-    }
-    
-    /* 3. ARREGLO MENÚS DESPLEGABLES (Para la barra de entrada y Sidebar) */
-    div[data-baseweb="select"] > div {
-        font-size: 11px !important;
-        white-space: normal !important;
-        height: auto !important;
-        min-height: 1.8rem !important;
-    }
-    
-    /* 4. INPUTS NUMÉRICOS SIN FLECHAS */
-    input[type=number]::-webkit-inner-spin-button, 
-    input[type=number]::-webkit-outer-spin-button { 
-        -webkit-appearance: none; 
-        margin: 0; 
-    }
-    input[type=number] {
-        -moz-appearance: textfield;
-    }
-    
-    /* 5. TABLA CENTRAL MEJORADA */
-    div[data-testid="stDataEditor"] table {
-        font-size: 11px !important;
-    }
-    div[data-testid="stDataEditor"] th {
-        font-size: 11px !important;
-        background-color: #f0f2f6;
-        color: #31333F;
-        padding: 4px !important;
-        min-width: 80px !important;
-        vertical-align: middle !important;
-    }
-    div[data-testid="stDataEditor"] td {
-        font-size: 11px !important;
-        padding: 4px !important;
-        vertical-align: middle !important;
-        line-height: 1.2 !important;
-    }
-    
-    /* 6. ANCHO COMPLETO */
-    .stDataFrame, iframe[title="streamlit.data_editor"] {
-        width: 100% !important;
-    }
-    
-    /* Botones */
-    div.stButton > button {
-        width: 100%;
-        border-radius: 4px;
-        font-weight: bold;
-        font-size: 11px !important;
-        padding: 0.1rem;
-        height: 1.8rem;
-    }
-    
-    /* Estilo para el contenedor de Agregar */
-    .add-box {
-        background-color: #f8f9fa;
-        padding: 10px;
-        border-radius: 5px;
-        border: 1px solid #e0e0e0;
-        margin-bottom: 10px;
-    }
+    .kpi-val { font-size: 18px; font-weight: bold; color: #2E86C1; }
+    .kpi-lbl { font-size: 11px; color: #666; text-transform: uppercase; }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 1. BASES DE DATOS (V5 Data)
+# 2. MAESTROS DE DATOS (Extracto de V6-BASE)
 # ==========================================
 
+# 2.1 COUNTRIES
 DB_COUNTRIES = {
     "Argentina": {"ER": 1428.95, "Curr": "ARS", "Tax": 0.0529},
     "Brazil":    {"ER": 5.34,    "Curr": "BRL", "Tax": 0.1425},
@@ -110,305 +67,316 @@ DB_COUNTRIES = {
     "Ecuador":   {"ER": 1.0,     "Curr": "USD", "Tax": 0.0}
 }
 
+# 2.2 OFFERINGS
 DB_OFFERINGS = {
     "IBM Customized Support for Multivendor Hardware Services": {"L40": "6942-76T", "Conga": "Location Based Services"},
     "IBM Support for Red Hat": {"L40": "6948-B73", "Conga": "Conga by CSV"},
     "SWMA MVS SPT other Prod": {"L40": "6942-76O", "Conga": "Conga by CSV"},
-    "IBM Support for Oracle":  {"L40": "6942-42E", "Conga": "Location Based Services"},
-    "Relocation Services - Packaging": {"L40": "6942-54E", "Conga": "Location Based Services"},
-    "1-HWMA MVS SPT other Prod": {"L40": "6942-0IC", "Conga": "Conga by CSV"}
+    "IBM Support for Oracle":  {"L40": "6942-42E", "Location Based Services"},
+    "Relocation Services - Packaging": {"L40": "6942-54E", "Location Based Services"},
+    "1-HWMA MVS SPT other Prod": {"L40": "6942-0IC", "Conga by CSV"}
 }
 
-DB_RISK = {"Low": 0.02, "Medium": 0.05, "High": 0.08}
-
+# 2.3 SLC (Factores)
 DB_SLC = [
     {"Scope": "no brasil", "SLC": "9X5NBD", "Factor": 1.0},
     {"Scope": "no brasil", "SLC": "24X7SD", "Factor": 1.0},
     {"Scope": "no brasil", "SLC": "24X7 4h Resp", "Factor": 1.5},
-    {"Scope": "no brasil", "SLC": "24X7 6h Fix", "Factor": 1.6},
     {"Scope": "Brasil",    "SLC": "9X5NBD", "Factor": 1.0},
     {"Scope": "Brasil",    "SLC": "24X7SD", "Factor": 1.218},
     {"Scope": "Brasil",    "SLC": "24X7 4h Resp", "Factor": 1.7}
 ]
 
+# 2.4 RISK
+DB_RISK = {"Low": 0.02, "Medium": 0.05, "High": 0.08}
+
+# 2.5 LABOR (Machine Category & Brand Rate) - Simplificado del CSV
+# Estructura: {Clave_Unica: Costo}
+# Nota: Asumo que los costos en DB_LABOR son en moneda local o base según tu lógica de dividir por ER.
+DB_LABOR = {
+    # Brazil Machine Categories
+    "Brazil|System Z": 2803.85,
+    "Brazil|Power HE": 1516.61,
+    "Brazil|Power LE": 742.22,
+    "Brazil|Storage HE": 1403.43,
+    "Brazil|MVS HE": 361.36,
+    # Global Brand Rates
+    "ALL|Brand Rate Full - B1": 15247.99,
+    "ALL|Brand Rate Full - B2": 17897.25,
+    "ALL|Brand Rate Full - B3": 31500.00
+}
+
 # ==========================================
-# 2. LOGICA DE NEGOCIO
+# 3. MOTORES LÓGICOS
 # ==========================================
 
 def get_slc_factor(country, slc_code):
-    if not slc_code or pd.isna(slc_code) or str(slc_code).strip() == "":
-        return 1.0
+    if not slc_code: return 1.0
     scope_key = "Brasil" if country == "Brazil" else "no brasil"
-    slc_str = str(slc_code).strip()
     for item in DB_SLC:
-        try:
-            if item["Scope"].lower() == scope_key.lower() and slc_str in str(item["SLC"]):
-                return float(item.get("Factor", 1.0))
-        except: continue
+        if item["Scope"].lower() == scope_key.lower() and str(slc_code) in item["SLC"]:
+            return float(item["Factor"])
     return 1.0
 
 def calc_months(start, end):
-    if not start or not end: return 0.0
-    try:
-        d_start = pd.to_datetime(start).date() if isinstance(start, (pd.Timestamp, str)) else start
-        d_end = pd.to_datetime(end).date() if isinstance(end, (pd.Timestamp, str)) else end
-        if d_end < d_start: return 0.0
-        days = (d_end - d_start).days
-        return round(days / 30.44, 1)
-    except: return 0.0
+    if not start or not end or end < start: return 0.0
+    return round((end - start).days / 30.44, 1)
+
+def get_labor_cost(country, labor_type, labor_detail):
+    # Buscar primero especifico por país (Machine Category)
+    key_country = f"{country}|{labor_detail}"
+    if key_country in DB_LABOR:
+        return DB_LABOR[key_country]
+    
+    # Buscar global (Brand Rate)
+    key_global = f"ALL|{labor_detail}"
+    if key_global in DB_LABOR:
+        return DB_LABOR[key_global]
+        
+    return 0.0
 
 def reset_index(df):
-    """Reinicia el índice para que empiece en 1."""
     df.reset_index(drop=True, inplace=True)
     df.index = np.arange(1, len(df) + 1)
     return df
 
 # ==========================================
-# 3. INTERFAZ: SIDEBAR
+# 4. INTERFAZ: SIDEBAR (General Info)
 # ==========================================
 
 with st.sidebar:
-    st.markdown("### General info") 
+    st.markdown("### 1. General Info")
     
-    country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3)
+    country = st.selectbox("Country", list(DB_COUNTRIES.keys()), index=3) # Colombia default
     country_data = DB_COUNTRIES[country]
     er_val = country_data['ER'] if country_data['ER'] else 1.0
     
-    # Selector de Moneda
+    # Currency
     currency_mode = st.radio("Currency Mode", ["USD", "Local"], horizontal=True)
-    st.caption(f"Tasa {country_data['Curr']}: {er_val:,.2f}")
-
-    # Risk
-    risk_col1, risk_col2 = st.columns([0.7, 0.3])
-    qa_risk = risk_col1.selectbox("QA Risk", list(DB_RISK.keys()))
+    st.caption(f"Exchange Rate ({country_data['Curr']}): {er_val:,.2f}")
+    
+    # Dates
+    c_d1, c_d2 = st.columns(2)
+    start_date = c_d1.date_input("Start Date", date.today())
+    end_date = c_d2.date_input("End Date", date.today().replace(year=date.today().year + 1))
+    period = calc_months(start_date, end_date)
+    st.info(f"Contract Period: **{period} months**")
+    
+    # Risk & Poliza
+    qa_risk = st.selectbox("QA Risk", list(DB_RISK.keys()))
     risk_pct = DB_RISK[qa_risk]
-    risk_col2.markdown(f"<div style='padding-top:1.2rem;font-size:9px;font-weight:bold'>{risk_pct*100}%</div>", unsafe_allow_html=True)
-
-    customer_name = st.text_input("Customer Name", "Cliente Ejemplo")
-    customer_number = st.text_input("Customer Number", "000000")
+    dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, step=0.0, format="%.2f")
     
-    col_d1, col_d2 = st.columns(2)
-    start_date = col_d1.date_input("Contract Start Date", date.today())
-    end_date = col_d2.date_input("Contract End Date", date.today().replace(year=date.today().year + 1))
-    
-    contract_period = calc_months(start_date, end_date)
-    st.text_input("Period (Months)", value=f"{contract_period}", disabled=True)
-    
-    # Input Póliza
-    dist_cost = st.number_input("Distributed Cost (Poliza)", min_value=0.0, value=100.0, step=0.0, format="%.2f")
-    
-    st.markdown("---")
+    st.divider()
     target_gp = st.slider("Target GP %", 0.0, 1.0, 0.40, 0.01)
 
 # ==========================================
-# 4. ENCABEZADO
+# 5. HEADER PRINCIPAL
 # ==========================================
 
-col_header_space, col_header_title = st.columns([1, 3])
-with col_header_title:
-    st.markdown("""
-        <h1 style='text-align: right; color: #2E4053; margin-bottom: 0px; padding-bottom: 0px;'>
-            🌐 LacostWeb ver19
-        </h1>
-        <hr style='margin-top: 5px; margin-bottom: 20px; border-color: #2E4053;'>
-    """, unsafe_allow_html=True)
-
-st.subheader("📋 Input Values Section")
-
-# Inicializar Dataframe
-if "df_data" not in st.session_state:
-    data = {
-        "Offering": ["IBM Customized Support for Multivendor Hardware Services"],
-        "L40": ["6942-76T"],
-        "Go to Conga": ["Location Based Services"],
-        "Description": ["Soporte Base"],
-        "QTY": [1],
-        "Start Service Date": [date.today()],
-        "End Service Date": [date.today().replace(year=date.today().year + 1)],
-        "Duration": [12.0],
-        "SLC": ["9X5NBD"],
-        "Unit Cost USD": [100.0],
-        "Unit Cost Local": [0.0],
-        "🗑️": [False] 
-    }
-    st.session_state.df_data = pd.DataFrame(data)
-    st.session_state.df_data = reset_index(st.session_state.df_data) 
-
-if "🗑️" not in st.session_state.df_data.columns:
-    st.session_state.df_data["🗑️"] = False
-
-# --- OPCIONES SLC ---
-slc_options = sorted(list(set([x["SLC"] for x in DB_SLC])))
+col_h1, col_h2 = st.columns([1, 4])
+with col_h2:
+    st.markdown("<h1 style='text-align: right; color: #1565C0;'>LacostWeb V20 🚀</h1>", unsafe_allow_html=True)
+    st.markdown(f"<p style='text-align: right; color: gray;'>Blueprint V6-BASE Implementation | {customer_name if 'customer_name' in locals() else 'New Quote'}</p>", unsafe_allow_html=True)
 
 # ==========================================
-# 5. BARRA DE ENTRADA (AGREGAR FILA) - ESTILO FORMULARIO
-# ==========================================
-# Usamos widgets nativos (st.selectbox) para garantizar que se vean igual que el sidebar
-
-with st.expander("➕ Agregar Nuevo Servicio (Input)", expanded=True):
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        # Menú Offering GRANDE y CÓMODO
-        new_offering = st.selectbox("Select Offering", options=list(DB_OFFERINGS.keys()))
-    with c2:
-        new_slc = st.selectbox("Select SLC", options=slc_options)
-    
-    c3, c4, c5, c6 = st.columns(4)
-    with c3:
-        new_qty = st.number_input("QTY", min_value=1, value=1, step=1)
-    with c4:
-        new_desc = st.text_input("Description", "Nuevo Servicio")
-    with c5:
-        # Costos iniciales (opcionales)
-        new_cost_usd = st.number_input("Unit Cost USD", min_value=0.0, step=0.0)
-    with c6:
-        # Botón de Agregar
-        st.write("") # Espacio
-        if st.button("Agregar a Tabla", use_container_width=True):
-            new_row = pd.DataFrame({
-                "Offering": [new_offering],
-                "L40": [""], "Go to Conga": [""], "Description": [new_desc],
-                "QTY": [new_qty], "Start Service Date": [date.today()], "End Service Date": [date.today().replace(year=date.today().year + 1)],
-                "Duration": [12.0], "SLC": [new_slc],
-                "Unit Cost USD": [new_cost_usd], "Unit Cost Local": [0.0],
-                "🗑️": [False]
-            })
-            st.session_state.df_data = pd.concat([st.session_state.df_data, new_row], ignore_index=True)
-            st.session_state.df_data = reset_index(st.session_state.df_data)
-            st.rerun()
-
-# ==========================================
-# 6. TABLA DE DATOS (VISUALIZACIÓN Y EDICIÓN RÁPIDA)
+# 6. SECCIÓN INPUT COSTS (Sub-Secciones)
 # ==========================================
 
-# Configuración de Columnas
-col_config = {
-    # Offering y SLC también editables aquí, pero el input principal es arriba
-    "Offering": st.column_config.SelectboxColumn("Offering", options=list(DB_OFFERINGS.keys()), width="large"),
-    "L40": st.column_config.TextColumn("L40", width="small", disabled=True),
-    "Go to Conga": st.column_config.TextColumn("Go to Conga", width="small", disabled=True),
-    "Description": st.column_config.TextColumn("Description", width="medium"),
-    "QTY": st.column_config.NumberColumn("QTY", width="small", min_value=1),
-    "Start Service Date": st.column_config.DateColumn("Start Date", width="small"),
-    "End Service Date": st.column_config.DateColumn("End Date", width="small"),
-    "Duration": st.column_config.NumberColumn("Dur.", width="small", disabled=True),
-    "SLC": st.column_config.SelectboxColumn("SLC", options=slc_options, width="medium"), 
-    "Unit Cost USD": st.column_config.NumberColumn("Unit USD", width="small", required=False), 
-    "Unit Cost Local": st.column_config.NumberColumn("Unit Local", width="small", required=False),
-    "🗑️": st.column_config.CheckboxColumn("Del", width="small") 
-}
+st.markdown("<div class='section-header'>2. Input Costs</div>", unsafe_allow_html=True)
 
-# EDITOR
-edited_df = st.data_editor(
-    st.session_state.df_data,
-    num_rows="fixed", 
-    use_container_width=True,
-    column_config=col_config,
-    key="main_editor"
-)
+# Pestañas para las sub-secciones
+tab_services, tab_labor = st.tabs(["🛠️ Servicios (Offerings)", "👷 Labor (RR/BR)"])
 
-# ==========================================
-# 7. ENGINE DE CÁLCULO
-# ==========================================
-
-if not edited_df.empty:
+# -------------------------------------------------------------------
+# SUB-SECCIÓN A: SERVICIOS (Tabla Principal)
+# -------------------------------------------------------------------
+with tab_services:
+    if "df_services" not in st.session_state:
+        st.session_state.df_services = pd.DataFrame(columns=[
+            "Offering", "L40", "Go to Conga", "Description", "QTY", 
+            "Start Date", "End Date", "Duration", "SLC", "Unit USD", "Unit Local", "Del"
+        ])
     
-    # 1. BORRADO DE FILAS (Usando checkbox)
-    if "🗑️" in edited_df.columns:
-        rows_to_delete = edited_df[edited_df["🗑️"] == True].index
-        if not rows_to_delete.empty:
-            st.session_state.df_data = edited_df.drop(rows_to_delete)
-            st.session_state.df_data = reset_index(st.session_state.df_data)
-            st.rerun()
-
-    # 2. CÁLCULO DE TOTALES
-    rows_count = len(edited_df)
-    dist_cost_per_row = dist_cost / rows_count if rows_count > 0 else 0
-    calculated_rows = []
-    total_cost_usd_accum = 0.0
-    
-    safe_er = er_val if er_val and er_val > 0 else 1.0
-
-    for idx, row in edited_df.iterrows():
-        # -- Info Base --
-        off_name = str(row.get("Offering", ""))
-        off_db = DB_OFFERINGS.get(off_name, {"L40": "", "Conga": ""})
+    # Barra de Entrada (Input Bar)
+    with st.expander("➕ Agregar Servicio", expanded=True):
+        c1, c2 = st.columns([2, 1])
+        in_off = c1.selectbox("Offering", options=list(DB_OFFERINGS.keys()), key="in_off")
+        in_slc = c2.selectbox("SLC", options=sorted(list(set([x["SLC"] for x in DB_SLC]))), key="in_slc")
         
-        s_date = row.get("Start Service Date")
-        e_date = row.get("End Service Date")
-        duration_line = calc_months(s_date, e_date)
+        c3, c4, c5, c6 = st.columns(4)
+        in_qty = c3.number_input("Qty", 1, 9999, 1, key="in_qty")
+        in_desc = c4.text_input("Desc", "Soporte", key="in_desc")
+        in_cost = c5.number_input("Unit Cost USD", 0.0, step=0.0, key="in_cost")
         
-        slc_val = row.get("SLC", "")
-        slc_factor = get_slc_factor(country, slc_val)
-        
-        try: qty = float(row.get("QTY", 1))
-        except: qty = 1.0
-
-        # -- EXTRACCIÓN --
-        u_cost_usd_raw = pd.to_numeric(row.get("Unit Cost USD"), errors='coerce')
-        u_cost_usd_raw = 0.0 if pd.isna(u_cost_usd_raw) else float(u_cost_usd_raw)
-        
-        u_cost_local_raw = pd.to_numeric(row.get("Unit Cost Local"), errors='coerce')
-        u_cost_local_raw = 0.0 if pd.isna(u_cost_local_raw) else float(u_cost_local_raw)
-        
-        # -- LÓGICA DE MONEDA --
-        if currency_mode == "USD":
-            base_rate_usd = u_cost_usd_raw
-        else:
-            base_rate_usd = u_cost_local_raw / safe_er
-            
-        # -- TOTAL --
-        base_line_total = (base_rate_usd * qty * duration_line * slc_factor)
-        line_total_usd = base_line_total + dist_cost_per_row
-        
-        total_cost_usd_accum += line_total_usd
-        
-        calculated_rows.append({
-            **row,
-            "L40": off_db["L40"],
-            "Go to Conga": off_db["Conga"],
-            "Duration": duration_line,
-            "_LineTotalUSD": line_total_usd
-        })
-
-    # ==========================================
-    # 8. RESULTADOS FINANCIEROS
-    # ==========================================
-    
-    st.divider()
-    st.subheader("💰 Resumen Financiero")
-    
-    contingency_val = total_cost_usd_accum * risk_pct
-    cost_base = total_cost_usd_accum + contingency_val
-    safe_gp = 0.99 if target_gp >= 1.0 else target_gp
-    sell_price = cost_base / (1 - safe_gp)
-    taxes = sell_price * country_data['Tax']
-    final_price = sell_price + taxes
-    
-    # VISUALIZACIÓN
-    factor = er_val if currency_mode == "Local" else 1.0
-    sym = country_data['Curr'] if currency_mode == "Local" else "USD"
-    
-    k1, k2, k3, k4 = st.columns(4)
-    source_label = "USD" if currency_mode == "USD" else "Local"
-    
-    k1.metric(f"TOTAL COST (Base: {source_label})", f"{total_cost_usd_accum * factor:,.2f} {sym}")
-    k2.metric(f"CONTINGENCY ({risk_pct*100}%)", f"{contingency_val * factor:,.2f} {sym}")
-    k3.metric(f"SELL PRICE (Revenue)", f"{sell_price * factor:,.2f} {sym}")
-    k4.metric("FINAL PRICE (+Tax)", f"{final_price * factor:,.2f} {sym}")
-    
-    if st.button("💾 Descargar Excel Calculado"):
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df_export = pd.DataFrame(calculated_rows)
-            cols_drop = ["_LineTotalUSD", "🗑️"]
-            df_export = df_export.drop(columns=[c for c in cols_drop if c in df_export.columns])
-            df_export.to_excel(writer, sheet_name='Input Processed', index=False)
-            
-            summary_data = {
-                "KPI": ["Customer", "Risk", "Total Cost USD", "Sell Price USD", "Final Price USD", "GP Target", "Active Currency Mode"],
-                "Value": [customer_name, risk_pct, total_cost_usd_accum, sell_price, final_price, target_gp, currency_mode]
+        if c6.button("Agregar a Tabla", use_container_width=True):
+            off_data = DB_OFFERINGS.get(in_off, {"L40":"", "Conga":""})
+            new_row = {
+                "Offering": in_off, "L40": off_data["L40"], "Go to Conga": off_data["Conga"],
+                "Description": in_desc, "QTY": in_qty, 
+                "Start Date": start_date, "End Date": end_date, "Duration": period,
+                "SLC": in_slc, "Unit USD": in_cost, "Unit Local": 0.0, "Del": False
             }
-            pd.DataFrame(summary_data).to_excel(writer, sheet_name='Pricing Summary', index=False)
+            st.session_state.df_services = pd.concat([st.session_state.df_services, pd.DataFrame([new_row])], ignore_index=True)
+            st.session_state.df_services = reset_index(st.session_state.df_services)
+            st.rerun()
+
+    # Editor de Tabla
+    col_cfg_srv = {
+        "Offering": st.column_config.TextColumn("Offering", width="large", disabled=True),
+        "SLC": st.column_config.SelectboxColumn("SLC", options=sorted(list(set([x["SLC"] for x in DB_SLC]))), width="medium"),
+        "Unit USD": st.column_config.NumberColumn("Unit USD", width="small"),
+        "Unit Local": st.column_config.NumberColumn("Unit Local", width="small"),
+        "Del": st.column_config.CheckboxColumn("🗑️", width="small")
+    }
+    
+    edited_services = st.data_editor(
+        st.session_state.df_services,
+        column_config=col_cfg_srv,
+        use_container_width=True,
+        num_rows="fixed",
+        hide_index=False,
+        key="editor_services"
+    )
+    
+    # Lógica de Borrado Servicios
+    if not edited_services.empty:
+        if edited_services["Del"].any():
+            st.session_state.df_services = edited_services[~edited_services["Del"]].reset_index(drop=True)
+            st.session_state.df_services = reset_index(st.session_state.df_services)
+            st.rerun()
+
+# -------------------------------------------------------------------
+# SUB-SECCIÓN B: LABOR (RR/BR)
+# -------------------------------------------------------------------
+with tab_labor:
+    if "df_labor" not in st.session_state:
+        st.session_state.df_labor = pd.DataFrame(columns=["Role Type", "Role Detail", "Base Rate (DB)", "Qty", "Del"])
+        
+    with st.expander("➕ Agregar Labor", expanded=True):
+        l1, l2, l3, l4 = st.columns([1, 2, 1, 1])
+        # Filtro inteligente de roles
+        role_options = list(DB_LABOR.keys())
+        # Filtrar solo lo relevante para el país seleccionado + Globales
+        filtered_roles = [r.split("|")[1] for r in role_options if r.startswith(country) or r.startswith("ALL")]
+        
+        in_role_type = l1.selectbox("Type", ["Machine Category", "Brand Rate Full"])
+        in_role_det = l2.selectbox("Role Detail", filtered_roles)
+        in_l_qty = l3.number_input("Hours/Qty", 1, 1000, 1)
+        
+        if l4.button("Add Labor", use_container_width=True):
+            # Buscar costo base en DB
+            cost_base = get_labor_cost(country, in_role_type, in_role_det) # Intento simple
+            if cost_base == 0: # Intento con el string directo
+                 cost_base = get_labor_cost(country, "Any", in_role_det)
             
-        st.download_button("📥 Click para descargar", output, f"Lacost_{customer_name}_V19.xlsx", "application/vnd.ms-excel")
+            new_l_row = {
+                "Role Type": in_role_type, "Role Detail": in_role_det, 
+                "Base Rate (DB)": cost_base, "Qty": in_l_qty, "Del": False
+            }
+            st.session_state.df_labor = pd.concat([st.session_state.df_labor, pd.DataFrame([new_l_row])], ignore_index=True)
+            st.session_state.df_labor = reset_index(st.session_state.df_labor)
+            st.rerun()
+            
+    edited_labor = st.data_editor(
+        st.session_state.df_labor,
+        use_container_width=True,
+        num_rows="fixed",
+        key="editor_labor"
+    )
+    
+    # Lógica Borrado Labor
+    if not edited_labor.empty:
+        if edited_labor["Del"].any():
+            st.session_state.df_labor = edited_labor[~edited_labor["Del"]].reset_index(drop=True)
+            st.session_state.df_labor = reset_index(st.session_state.df_labor)
+            st.rerun()
+
+# ==========================================
+# 7. ENGINE DE CÁLCULO (Sección 3: Total Cost)
+# ==========================================
+
+total_services_usd = 0.0
+total_labor_usd = 0.0
+
+# 7.1 CALCULO SERVICIOS
+# Fórmula: (Unit Cost * Qty * Duration * SLC) + DistCost(parcial)
+rows_srv = len(edited_services)
+dist_cost_unit = dist_cost / rows_srv if rows_srv > 0 else 0
+
+for idx, row in edited_services.iterrows():
+    # Independencia de Moneda
+    if currency_mode == "USD":
+        base_u = row["Unit USD"]
+    else:
+        # Convertir Local a USD para el total
+        base_u = row["Unit Local"] / er_val if er_val else 0
+    
+    slc_f = get_slc_factor(country, row["SLC"])
+    line_tot = (base_u * row["QTY"] * row["Duration"] * slc_f) + dist_cost_unit
+    total_services_usd += line_tot
+
+# 7.2 CALCULO LABOR
+# Fórmula File: (Rate / ER) * Qty
+for idx, row in edited_labor.iterrows():
+    rate_db = row["Base Rate (DB)"]
+    qty = row["Qty"]
+    
+    # Aplicar la división por ER según Logic_rules.csv
+    # Asumimos que la DB tiene precios locales o globales que requieren conversión
+    if er_val and er_val > 0:
+        line_labor_usd = (rate_db / er_val) * qty
+    else:
+        line_labor_usd = 0
+        
+    total_labor_usd += line_labor_usd
+
+GRAND_TOTAL_USD = total_services_usd + total_labor_usd
+
+# ==========================================
+# 8. PRICING & RESULTADOS (Sección 4)
+# ==========================================
+
+st.markdown("<div class='section-header'>3. & 4. Total Cost & Pricing</div>", unsafe_allow_html=True)
+
+# Lógica Financiera
+contingency = GRAND_TOTAL_USD * risk_pct
+cost_w_risk = GRAND_TOTAL_USD + contingency
+sell_price = cost_w_risk / (1 - target_gp) if target_gp < 1 else 0
+taxes = sell_price * country_data["Tax"]
+final_price = sell_price + taxes
+
+# Factor de Visualización Final
+disp_factor = er_val if currency_mode == "Local" else 1.0
+sym = country_data["Curr"] if currency_mode == "Local" else "USD"
+
+# TARJETAS KPI
+k1, k2, k3, k4, k5 = st.columns(5)
+
+with k1:
+    st.markdown(f"<div class='kpi-card'><div class='kpi-val'>{total_services_usd * disp_factor:,.0f}</div><div class='kpi-lbl'>Total Servicios ({sym})</div></div>", unsafe_allow_html=True)
+with k2:
+    st.markdown(f"<div class='kpi-card'><div class='kpi-val'>{total_labor_usd * disp_factor:,.0f}</div><div class='kpi-lbl'>Total Labor ({sym})</div></div>", unsafe_allow_html=True)
+with k3:
+    st.markdown(f"<div class='kpi-card'><div class='kpi-val' style='color:#E67E22'>{contingency * disp_factor:,.0f}</div><div class='kpi-lbl'>Risk ({risk_pct*100}%)</div></div>", unsafe_allow_html=True)
+with k4:
+    st.markdown(f"<div class='kpi-card'><div class='kpi-val' style='color:#27AE60'>{sell_price * disp_factor:,.0f}</div><div class='kpi-lbl'>Sell Price (GP {target_gp*100:.0f}%)</div></div>", unsafe_allow_html=True)
+with k5:
+    st.markdown(f"<div class='kpi-card'><div class='kpi-val'>{final_price * disp_factor:,.0f}</div><div class='kpi-lbl'>Final + Tax ({sym})</div></div>", unsafe_allow_html=True)
+
+# EXPORTACIÓN
+st.write("")
+if st.button("💾 Descargar Cotización Completa (Excel)"):
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        edited_services.to_excel(writer, sheet_name='Detailed Services', index=False)
+        edited_labor.to_excel(writer, sheet_name='Detailed Labor', index=False)
+        
+        # Resumen
+        res = pd.DataFrame({
+            "Concepto": ["Country", "Currency Mode", "Services Total USD", "Labor Total USD", "Risk", "Sell Price", "Final Price"],
+            "Valor": [country, currency_mode, total_services_usd, total_labor_usd, contingency, sell_price, final_price]
+        })
+        res.to_excel(writer, sheet_name='Summary', index=False)
+        
+    st.download_button("📥 Click to Download", buffer, f"Lacost_V20_{customer_name}.xlsx", "application/vnd.ms-excel")
