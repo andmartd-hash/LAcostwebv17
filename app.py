@@ -243,9 +243,9 @@ with tab_services:
         key="editor_services"
     )
     
-    # Lógica de Borrado Servicios
+    # Lógica de Borrado Servicios (SAFE MODE)
     if not edited_services.empty:
-        if edited_services["Del"].any():
+        if "Del" in edited_services.columns and edited_services["Del"].any():
             st.session_state.df_services = edited_services[~edited_services["Del"]].reset_index(drop=True)
             st.session_state.df_services = reset_index(st.session_state.df_services)
             st.rerun()
@@ -265,18 +265,17 @@ with tab_labor:
         l1, l2, l3, l4 = st.columns([1, 2, 1, 1])
         # Filtro inteligente de roles
         role_options = list(DB_LABOR.keys())
-        # Filtrar solo lo relevante para el país seleccionado + Globales
-        filtered_roles = [r.split("|")[1] for r in role_options if r.startswith(country) or r.startswith("ALL")]
+        # FIX: Mostrar TODAS las opciones disponibles (Globales + Todos los países)
+        # Esto soluciona el problema de listas vacías si el país no tiene datos específicos.
+        all_roles_display = sorted(list(set([r.split("|")[1] for r in role_options])))
         
         in_role_type = l1.selectbox("Type", ["Machine Category", "Brand Rate Full"])
-        in_role_det = l2.selectbox("Role Detail", filtered_roles)
+        in_role_det = l2.selectbox("Role Detail", all_roles_display)
         in_l_qty = l3.number_input("Hours/Qty", 1, 1000, 1)
         
         if l4.button("Add Labor", use_container_width=True):
             # Buscar costo base en DB
-            cost_base = get_labor_cost(country, in_role_type, in_role_det) # Intento simple
-            if cost_base == 0: # Intento con el string directo
-                 cost_base = get_labor_cost(country, "Any", in_role_det)
+            cost_base = get_labor_cost(country, in_role_type, in_role_det) 
             
             new_l_row = {
                 "Role Type": in_role_type, "Role Detail": in_role_det, 
@@ -286,7 +285,7 @@ with tab_labor:
             st.session_state.df_labor = reset_index(st.session_state.df_labor)
             st.rerun()
     
-    # Configuración de Columnas Labor (Añadido para que el Del se vea bonito)
+    # Configuración de Columnas Labor
     col_cfg_lab = {
         "Del": st.column_config.CheckboxColumn("🗑️", width="small"),
         "Base Rate (DB)": st.column_config.NumberColumn("Base Rate", format="%.2f")
@@ -300,9 +299,9 @@ with tab_labor:
         key="editor_labor"
     )
     
-    # Lógica Borrado Labor
+    # Lógica Borrado Labor (SAFE MODE)
     if not edited_labor.empty:
-        # Aseguramos que la columna exista en el DataFrame editado antes de usarla
+        # Verificación explícita de que la columna existe antes de usarla
         if "Del" in edited_labor.columns and edited_labor["Del"].any():
             st.session_state.df_labor = edited_labor[~edited_labor["Del"]].reset_index(drop=True)
             st.session_state.df_labor = reset_index(st.session_state.df_labor)
