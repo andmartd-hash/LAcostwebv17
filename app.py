@@ -198,6 +198,10 @@ with tab_services:
             "Start Date", "End Date", "Duration", "SLC", "Unit USD", "Unit Local", "Del"
         ])
     
+    # AUTOCORRECCIÓN: Asegurar columna Del
+    if "Del" not in st.session_state.df_services.columns:
+        st.session_state.df_services["Del"] = False
+
     # Barra de Entrada (Input Bar)
     with st.expander("➕ Agregar Servicio", expanded=True):
         c1, c2 = st.columns([2, 1])
@@ -253,6 +257,10 @@ with tab_labor:
     if "df_labor" not in st.session_state:
         st.session_state.df_labor = pd.DataFrame(columns=["Role Type", "Role Detail", "Base Rate (DB)", "Qty", "Del"])
         
+    # AUTOCORRECCIÓN: Asegurar columna Del
+    if "Del" not in st.session_state.df_labor.columns:
+        st.session_state.df_labor["Del"] = False
+
     with st.expander("➕ Agregar Labor", expanded=True):
         l1, l2, l3, l4 = st.columns([1, 2, 1, 1])
         # Filtro inteligente de roles
@@ -277,9 +285,16 @@ with tab_labor:
             st.session_state.df_labor = pd.concat([st.session_state.df_labor, pd.DataFrame([new_l_row])], ignore_index=True)
             st.session_state.df_labor = reset_index(st.session_state.df_labor)
             st.rerun()
-            
+    
+    # Configuración de Columnas Labor (Añadido para que el Del se vea bonito)
+    col_cfg_lab = {
+        "Del": st.column_config.CheckboxColumn("🗑️", width="small"),
+        "Base Rate (DB)": st.column_config.NumberColumn("Base Rate", format="%.2f")
+    }
+
     edited_labor = st.data_editor(
         st.session_state.df_labor,
+        column_config=col_cfg_lab,
         use_container_width=True,
         num_rows="fixed",
         key="editor_labor"
@@ -287,7 +302,8 @@ with tab_labor:
     
     # Lógica Borrado Labor
     if not edited_labor.empty:
-        if edited_labor["Del"].any():
+        # Aseguramos que la columna exista en el DataFrame editado antes de usarla
+        if "Del" in edited_labor.columns and edited_labor["Del"].any():
             st.session_state.df_labor = edited_labor[~edited_labor["Del"]].reset_index(drop=True)
             st.session_state.df_labor = reset_index(st.session_state.df_labor)
             st.rerun()
