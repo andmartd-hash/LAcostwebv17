@@ -67,14 +67,14 @@ DB_COUNTRIES = {
     "Ecuador":   {"ER": 1.0,     "Curr": "USD", "Tax": 0.0}
 }
 
-# 2.2 OFFERINGS
+# 2.2 OFFERINGS (CORREGIDO: Se agregaron las claves "Conga" faltantes)
 DB_OFFERINGS = {
     "IBM Customized Support for Multivendor Hardware Services": {"L40": "6942-76T", "Conga": "Location Based Services"},
     "IBM Support for Red Hat": {"L40": "6948-B73", "Conga": "Conga by CSV"},
     "SWMA MVS SPT other Prod": {"L40": "6942-76O", "Conga": "Conga by CSV"},
-    "IBM Support for Oracle":  {"L40": "6942-42E", "Location Based Services"},
-    "Relocation Services - Packaging": {"L40": "6942-54E", "Location Based Services"},
-    "1-HWMA MVS SPT other Prod": {"L40": "6942-0IC", "Conga by CSV"}
+    "IBM Support for Oracle":  {"L40": "6942-42E", "Conga": "Location Based Services"},
+    "Relocation Services - Packaging": {"L40": "6942-54E", "Conga": "Location Based Services"},
+    "1-HWMA MVS SPT other Prod": {"L40": "6942-0IC", "Conga": "Conga by CSV"}
 }
 
 # 2.3 SLC (Factores)
@@ -379,4 +379,4 @@ if st.button("💾 Descargar Cotización Completa (Excel)"):
         })
         res.to_excel(writer, sheet_name='Summary', index=False)
         
-    st.download_button("📥 Click to Download", buffer, f"Lacost_V20_{customer_name}.xlsx", "application/vnd.ms-excel")
+    st.download_button("📥 Click to Download", buffer, f"Lacost_V20_{customer_name if 'customer_name' in locals() else 'Quote'}.xlsx", "application/vnd.ms-excel")
